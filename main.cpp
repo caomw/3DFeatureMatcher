@@ -40,12 +40,35 @@ cv::Scalar random_color(cv::RNG &rng)
     return CV_RGB(color&255, (color>>8)&255, (color>>16)&255);
 }
 
+/** Displays the usage message
+ */
+int help(void)
+{
+    std::cout << "Usage: 3dfeaturematcher -s <settings.yml>" << std::endl;
+    return 0;
+}
+
 int main(int argc, char **argv) {
     
     std::cout << "Hello!" << std::endl;
     
     std::cout << std::fixed << std::setprecision(6);
     setlocale(LC_NUMERIC, "C");
+    
+    /////////////////////////////    
+    /// Check arguments
+    
+    if (argc != 3)
+    {
+        help();
+        exit(-1);
+    }
+    
+    if (std::string(argv[1]) != "-s")
+    {
+        help();
+        exit(-1);
+    }
     
     /////////////////////////////    
     /// Open input files
