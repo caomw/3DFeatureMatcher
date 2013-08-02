@@ -1,0 +1,15 @@
+%YAML:1.0
+NNDR:
+   epsilon: 0.55
+FeatureOptions:
+   DetectorType: SIFT
+   DetectorMode: STATIC
+   
+   SiftDetector:
+      EdgeThreshold: 10
+      ContrastThreshold: 0.04
+      NumFeatures: 200
+      NumOctaveLayers: 3
+      Sigma: 1.6
+
+   ExtractorType: SIFT

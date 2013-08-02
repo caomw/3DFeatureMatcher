@@ -22,8 +22,9 @@ add_definitions( ${PCL_DEFINITIONS} )
 
 find_package (Threads REQUIRED)
 
-add_executable(3dfeaturematcher main.cpp)
+add_executable(3dfeaturematcher DescriptorsMatcher/descriptorsmatcher.cpp main.cpp)
 
-target_link_libraries(3dfeaturematcher  ${OpenCV_LIBS} ${PCL_LIBRARIES} )
+target_link_libraries(3dfeaturematcher ${OpenCV_LIBS} ${PCL_LIBRARIES} )
 
 install(TARGETS 3dfeaturematcher RUNTIME DESTINATION bin)
+add_subdirectory(DescriptorsMatcher)

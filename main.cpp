@@ -12,6 +12,8 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/thread/thread.hpp>
 
+#include "DescriptorsMatcher/descriptorsmatcher.h"
+
 #define IMG_1 "/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000750.pgm"
 #define IMG_2 "/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000770.pgm"
 
@@ -32,6 +34,12 @@ void composeTransformation(const cv::Matx33d &R, const cv::Vec3d &T, cv::Matx44d
     G(3,0) = 0; G(3,1) = 0; G(3,2) = 0; G(3,3) = 1;
 }
 
+cv::Scalar random_color(cv::RNG &rng)
+{
+    int color = rng.next();
+    return CV_RGB(color&255, (color>>8)&255, (color>>16)&255);
+}
+
 int main(int argc, char **argv) {
     
     std::cout << "Hello!" << std::endl;
@@ -39,12 +47,87 @@ int main(int argc, char **argv) {
     std::cout << std::fixed << std::setprecision(6);
     setlocale(LC_NUMERIC, "C");
     
+    /////////////////////////////    
+    /// Open input files
+    
+    std::string 
+        settFileName = argv[2];
+    
+    cv::FileStorage 
+    fs;
+    
+    fs.open(settFileName, cv::FileStorage::READ);
+    
+    if (!fs.isOpened()) 
+    {
+        std::cerr << "Could not open settings file: " << settFileName << std::endl;
+        exit(-1);
+    }
+    
+    /////////////////////////////    
     // Get images
     cv::Mat
         img1 = cv::imread(IMG_1, CV_LOAD_IMAGE_GRAYSCALE),
         img2 = cv::imread(IMG_2, CV_LOAD_IMAGE_GRAYSCALE);
+        
+    /////////////////////////////    
+    // Estraggo le feature e le confronto
+    std::vector< cv::KeyPoint >
+        kpts1, kpts2;
+    cv::Mat
+        desc1, desc2;
+    std::vector< cv::DMatch > 
+        matches;
+    DescriptorsMatcher 
+        dm(fs, img1, img2);
     
-    ////
+    dm.compareWithNNDR(fs["NNDR"]["epsilon"], matches, kpts1, kpts2, desc1, desc2);
+        
+    ///////////////////////////// 
+    // Preparo i punti da triangolare
+    int
+        N = matches.size();  //> Numero di punti da triangolare
+    
+    std::cout << "-N-" << std::endl;
+    std::cout << N << std::endl;
+    std::cout << "------------" << std::endl;
+        
+    cv::Mat
+        a1 = cv::Mat::zeros(cv::Size(1,N), CV_64FC2),   //> Punti sulla prima immagine
+        a2 = cv::Mat::zeros(cv::Size(1,N), CV_64FC2);   //> Punti sulla seconda immagine
+    
+    std::vector< cv::Scalar >
+        colors;
+        
+    for (int actualMatch = 0; actualMatch < N; actualMatch++)
+    {
+        int 
+            image1Idx = matches.at(actualMatch).queryIdx,
+            image2Idx = matches.at(actualMatch).trainIdx;
+            
+        cv::Vec2d
+            pt1(kpts1.at(image1Idx).pt.x, kpts1.at(image1Idx).pt.y),
+            pt2(kpts2.at(image2Idx).pt.x, kpts2.at(image2Idx).pt.y);
+            
+        a1.at<cv::Vec2d>(actualMatch) = pt1; // conversione da float a double
+        a2.at<cv::Vec2d>(actualMatch) = pt2; // conversione da float a double
+    }
+        
+//     ////
+//     // Punto sul cartellone
+//     // (347,403)
+//     // (204,372)
+//     a1.at<cv::Vec2d>(0) = cv::Vec2d(347,403);
+//     a2.at<cv::Vec2d>(0) = cv::Vec2d(204,372);
+//     
+//     ////
+//     // Punto sul libro bianco sulla libreria
+//     // (781,588)
+//     // (804,695)
+//     a1.at<cv::Vec2d>(1) = cv::Vec2d(781,588);
+//     a2.at<cv::Vec2d>(1) = cv::Vec2d(804,695);
+    
+    ///////////////////////////// 
     // Ottengo i vettori di traslazione
     // IMG_1 pose: TIME : 25027785 POS : -->4.467813 3.420069 0.806258<-- 0.074931 -0.160281 0.563678
     // IMG_2 pose: TIME : 25694439 POS : -->5.034858 3.667427 0.833424<-- 0.014587 -0.248119 0.523502
@@ -56,7 +139,7 @@ int main(int argc, char **argv) {
         translation2(5.034858, 3.667427, 0.833424),
         translationIC(0.0, 0.015, -0.051);
         
-    ////
+    ///////////////////////////// 
     // Ottengo le matrici 3x3 di rotazione
     // IMG_1 pose: TIME : 25027785 POS : 4.467813 3.420069 0.806258 -->0.074931 -0.160281 0.563678<--
     // IMG_2 pose: TIME : 25694439 POS : 5.034858 3.667427 0.833424 -->0.014587 -0.248119 0.523502<--
@@ -79,7 +162,7 @@ int main(int argc, char **argv) {
 //     std::cout << rotationIC << std::endl;
 //     std::cout << "------------" << std::endl;
     
-    ////
+    ///////////////////////////// 
     // Preparo le matrici di trasformazione
     cv::Matx44d
         g1, g2, g12, gIC;  //> gIC = Matrice di trasformazione da CAMERA a IMU
@@ -119,6 +202,7 @@ int main(int argc, char **argv) {
     cameraMatrix(1,1) = Fy;
     cameraMatrix(0,2) = Cx;
     cameraMatrix(1,2) = Cy;
+    cameraMatrix(2,2) = 1;
     
     std::cout << "-Camera matrix-" << std::endl;
     std::cout << cameraMatrix << std::endl;
@@ -143,7 +227,7 @@ int main(int argc, char **argv) {
     distCoeffs.at<double>(3) = p2;
     distCoeffs.at<double>(4) = k2;
     
-    ////
+    ///////////////////////////// 
     // Prendo i punti, li rettifico e li triangolo
     cv::Matx34d
         projection1, projection2;
@@ -153,28 +237,9 @@ int main(int argc, char **argv) {
     std::cout << "-Proiezioni-" << std::endl;
     std::cout << projection1 << std::endl << projection2 << std::endl;
     std::cout << "------------" << std::endl;
-
-    int
-        N = 2;  //> Numero di punti da triangolare
-        
+    
     cv::Mat
-        a1 = cv::Mat::zeros(cv::Size(1,N), CV_64FC2),   //> Punti sulla prima immagine
-        a2 = cv::Mat::zeros(cv::Size(1,N), CV_64FC2),   //> Punti sulla seconda immagine
-        ua1, ua2;   //> Punti rettificati
-        
-    ////
-    // Punto sul cartellone
-    // (347,403)
-    // (204,372)
-    a1.at<cv::Vec2d>(0) = cv::Vec2d(347,403);
-    a2.at<cv::Vec2d>(0) = cv::Vec2d(204,372);
-        
-    ////
-    // Punto sul libro bianco sulla libreria
-    // (781,588)
-    // (804,695)
-    a1.at<cv::Vec2d>(1) = cv::Vec2d(781,588);
-    a2.at<cv::Vec2d>(1) = cv::Vec2d(804,695);
+        ua1, ua2;   // Punti rettificati
     
     cv::undistortPoints(a1, ua1, cameraMatrix, distCoeffs);
     cv::undistortPoints(a2, ua2, cameraMatrix, distCoeffs);
@@ -192,6 +257,7 @@ int main(int argc, char **argv) {
         
     cv::triangulatePoints(projection1, projection2, ua1, ua2, triagulatedHomogeneous);
     
+    ///////////////////////////// 
     // Get cartesian coordinate from homogeneous
     for (int actualPoint = 0; actualPoint < N; actualPoint++)
     {
@@ -200,9 +266,6 @@ int main(int argc, char **argv) {
             Y = triagulatedHomogeneous.at<double>(1, actualPoint),
             Z = triagulatedHomogeneous.at<double>(2, actualPoint),
             W = triagulatedHomogeneous.at<double>(3, actualPoint);
-            
-//         std::cout << "[" << X << ", " << Y << ", " << Z << ", " << W << "]" << std::endl;
-//         std::cout << "[" << X/W << ", " << Y/W << ", " << Z/W << ", " << W/W << "]" << std::endl;
         
         triagulated.at<double>(0, actualPoint) = X / W; // get x = X/W
         triagulated.at<double>(1, actualPoint) = Y / W; // get y = Y/W
@@ -216,7 +279,7 @@ int main(int argc, char **argv) {
     std::cout << triagulated << std::endl;
     std::cout << "------------" << std::endl;
     
-    ////
+    ///////////////////////////// 
     // Converto i punti in point cloud
     
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr
@@ -237,7 +300,7 @@ int main(int argc, char **argv) {
     cloud->width = (int) cloud->points.size ();
     cloud->height = 1;
     
-    ////
+    ///////////////////////////// 
     // Visualizzo la point cloud
     boost::shared_ptr< pcl::visualization::PCLVisualizer >
         viewer( new pcl::visualization::PCLVisualizer("Triangulated points viewer") );
@@ -249,11 +312,16 @@ int main(int argc, char **argv) {
     viewer->addCoordinateSystem(1.0);
     viewer->initCameraParameters();
         
-    cv::namedWindow("test1");
-    cv::namedWindow("test2");
-    cv::imshow("test1", img1);
-    cv::imshow("test2", img2);
-    cv::waitKey();
+    ///////////////////////////// 
+    // Visualizzo le immagini e i match
+    cv::Mat
+        window;
+        cv::drawMatches(img1, kpts1, img2, kpts2, matches, window, cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), 2);
+        
+    cv::imwrite("matches.pgm", window);
+//     cv::namedWindow("Matches");
+//     cv::imshow("Matches", window);
+//     cv::waitKey();
     
     while (!viewer->wasStopped())
     {
