@@ -40,6 +40,46 @@ cv::Scalar random_color(cv::RNG &rng)
     return CV_RGB(color&255, (color>>8)&255, (color>>16)&255);
 }
 
+/** Draw the matches and return the colors used
+ */
+void drawMatches(const cv::Mat &img1, const cv::Mat &img2, cv::Mat &window, const std::vector<cv::KeyPoint> &kpts1, const std::vector<cv::KeyPoint> &kpts2, const std::vector<cv::DMatch> &matches, std::vector<cv::Scalar> &colors)
+{
+    window = cv::Mat(cv::Size(img1.cols * 2, img1.rows), CV_8UC3, cv::Scalar(0));
+    
+    cv::Mat
+        img1BGR, img2BGR;
+        
+    cv::cvtColor(img1, img1BGR, CV_GRAY2BGR);
+    cv::cvtColor(img2, img2BGR, CV_GRAY2BGR);
+        
+    img1BGR.copyTo(window(cv::Rect(0,0,img1.cols,img1.rows)));
+    img2BGR.copyTo(window(cv::Rect(img1.cols,0,img2.cols,img2.rows)));
+    
+    cv::RNG 
+        rng(0xFFFFFFFF);
+    
+    for (int i = 0; i < matches.size(); i++)
+    {
+        cv::Scalar color = random_color(rng);
+        colors.push_back(color);
+        
+        int
+            idx1 = matches.at(i).queryIdx,
+            idx2 = matches.at(i).trainIdx;
+        
+        cv::Point2f
+            pt1 = kpts1.at(idx1).pt,
+            pt2 = kpts2.at(idx2).pt;
+        
+        pt2.x = pt2.x + img1.cols;
+            
+        cv::circle(window, pt1, 4, color);
+        cv::circle(window, pt2, 4, color);
+        
+        cv::line(window, pt1, pt2, color);
+    }
+}
+
 /** Displays the usage message
  */
 int help(void)
@@ -57,7 +97,6 @@ int main(int argc, char **argv) {
     
     /////////////////////////////    
     /// Check arguments
-    
     if (argc != 3)
     {
         help();
@@ -72,7 +111,6 @@ int main(int argc, char **argv) {
     
     /////////////////////////////    
     /// Open input files
-    
     std::string 
         settFileName = argv[2];
     
@@ -119,9 +157,6 @@ int main(int argc, char **argv) {
         a1 = cv::Mat::zeros(cv::Size(1,N), CV_64FC2),   //> Punti sulla prima immagine
         a2 = cv::Mat::zeros(cv::Size(1,N), CV_64FC2);   //> Punti sulla seconda immagine
     
-    std::vector< cv::Scalar >
-        colors;
-        
     for (int actualMatch = 0; actualMatch < N; actualMatch++)
     {
         int 
@@ -168,11 +203,11 @@ int main(int argc, char **argv) {
     // IMG_2 pose: TIME : 25694439 POS : 5.034858 3.667427 0.833424 -->0.014587 -0.248119 0.523502<--
     // Wc_x : -1.2005
     // Wc_y : 1.1981
-    // Wc_z : 1.2041
+    // Wc_z : -1.2041
     cv::Vec3d
         rodrigues1(0.074931, -0.160281, 0.563678),
         rodrigues2(0.014587, -0.248119, 0.523502),
-        rodriguesIC(-1.2005, 1.1981, 1.2041);
+        rodriguesIC(-1.2005, 1.1981, -1.2041);
       
     cv::Matx33d
         rotation1, rotation2, rotationIC;
@@ -198,10 +233,7 @@ int main(int argc, char **argv) {
     std::cout << g1 << std::endl << g2 << std::endl << gIC << std::endl;
     
     // Calcolo la trasformazione dal CAMERA2 a CAMERA1
-    cv::Matx44d
-        g1C, g2C;
-    
-    g12 = gIC * g1.inv() * g2 * gIC.inv();
+    g12 = gIC.inv() * g2.inv() * g1 * gIC;
     
     std::cout << "-g12-" << std::endl;
     std::cout << g12 << std::endl;
@@ -281,7 +313,7 @@ int main(int argc, char **argv) {
     cv::triangulatePoints(projection1, projection2, ua1, ua2, triagulatedHomogeneous);
     
     ///////////////////////////// 
-    // Get cartesian coordinate from homogeneous
+    // Get euclidean coordinate from homogeneous
     for (int actualPoint = 0; actualPoint < N; actualPoint++)
     {
         double 
@@ -300,11 +332,23 @@ int main(int argc, char **argv) {
     std::cout << "------------" << std::endl;
     std::cout << "-Punti triangolati (matrice 3xN)-" << std::endl;
     std::cout << triagulated << std::endl;
-    std::cout << "------------" << std::endl;
+    std::cout << "------------" << std::endl;    
+    
+    ///////////////////////////// 
+    // Visualizzo le immagini e i match
+    cv::Mat
+        window;
+    std::vector< cv::Scalar >
+        colors;
+    drawMatches(img1, img2, window, kpts1, kpts2, matches, colors);
+    
+    cv::imwrite("matches.pgm", window);
+    //     cv::namedWindow("Matches");
+    //     cv::imshow("Matches", window);
+    //     cv::waitKey();
     
     ///////////////////////////// 
     // Converto i punti in point cloud
-    
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr
         cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
         
@@ -314,9 +358,9 @@ int main(int argc, char **argv) {
         actual.x = triagulated.at<double>(0, i);
         actual.y = triagulated.at<double>(1, i);
         actual.z = triagulated.at<double>(2, i);
-        actual.r = (i%2)?255:100;
-        actual.g = (i%2)?100:100;
-        actual.b = (i%2)?100:255;
+        actual.r = colors.at(i)[2];
+        actual.g = colors.at(i)[1];
+        actual.b = colors.at(i)[0];
         
         cloud->points.push_back(actual);
     }
@@ -334,17 +378,6 @@ int main(int argc, char **argv) {
     viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 15, "Triangulated points");
     viewer->addCoordinateSystem(1.0);
     viewer->initCameraParameters();
-        
-    ///////////////////////////// 
-    // Visualizzo le immagini e i match
-    cv::Mat
-        window;
-        cv::drawMatches(img1, kpts1, img2, kpts2, matches, window, cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), 2);
-        
-    cv::imwrite("matches.pgm", window);
-//     cv::namedWindow("Matches");
-//     cv::imshow("Matches", window);
-//     cv::waitKey();
     
     while (!viewer->wasStopped())
     {

@@ -1,15 +1,16 @@
 %YAML:1.0
 NNDR:
-   epsilon: 0.55
+   epsilon: 0.5
 FeatureOptions:
-   DetectorType: SIFT
+   DetectorType: SURF
    DetectorMode: STATIC
-   
-   SiftDetector:
-      EdgeThreshold: 10
-      ContrastThreshold: 0.04
-      NumFeatures: 200
-      NumOctaveLayers: 3
-      Sigma: 1.6
-
-   ExtractorType: SIFT
+   SurfDetector:
+      HessianThreshold: 400
+      NumOctaves: 4
+      NumOctaveLayers: 2
+      Extended: 1
+      Upright: 1
+   BriskDetector:
+      Threshold: 25
+      Octaves: 0
+   ExtractorType: BRISK
