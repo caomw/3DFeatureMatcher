@@ -141,3 +141,63 @@ void viewPointCloud(const cv::Mat &triagulatedPoints, const std::vector< cv::Sca
         viewer->spin();
     }
 }
+
+void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< std::vector<cv::Vec3d> > &neighborhoodsVector, const std::vector< cv::Scalar > &colors)
+{
+    ///////////////////////////// 
+    // Converto i punti in point cloud
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr
+        cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
+    
+    for (int i = 0; i < triagulatedPoints.cols; i++)
+    {
+        pcl::PointXYZRGB actual;
+        actual.x = triagulatedPoints.at<double>(0, i);
+        actual.y = triagulatedPoints.at<double>(1, i);
+        actual.z = triagulatedPoints.at<double>(2, i);
+        actual.r = colors.at(i)[2];
+        actual.g = colors.at(i)[1];
+        actual.b = colors.at(i)[0];
+        
+        cloud->points.push_back(actual);
+        
+        for (std::size_t l = 0; l < neighborhoodsVector[i].size(); l++)
+        {
+            pcl::PointXYZRGB actualNeighbor;
+            
+            std::vector<cv::Vec3d>
+                neighborhoods = neighborhoodsVector[i];
+            
+            cv::Vec3d
+            point = neighborhoods[l];
+            
+            actualNeighbor.x = point[0];
+            actualNeighbor.y = point[1];
+            actualNeighbor.z = point[2];
+            actualNeighbor.r = colors.at(i)[2];
+            actualNeighbor.g = colors.at(i)[1];
+            actualNeighbor.b = colors.at(i)[0];
+            
+            cloud->points.push_back(actualNeighbor);
+        }
+    }
+    cloud->width = (int) cloud->points.size ();
+    cloud->height = 1;
+    
+    ///////////////////////////// 
+    // Visualizzo la point cloud
+    boost::shared_ptr< pcl::visualization::PCLVisualizer >
+    viewer( new pcl::visualization::PCLVisualizer("Triangulated points viewer") );
+    
+    viewer->setBackgroundColor(0,0,0);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
+    viewer->addPointCloud<pcl::PointXYZRGB>(cloud, rgb, "Triangulated points");
+    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 15, "Triangulated points");
+    viewer->addCoordinateSystem(1.0);
+    viewer->initCameraParameters();
+    
+    while (!viewer->wasStopped())
+    {
+        viewer->spin();
+    }
+}

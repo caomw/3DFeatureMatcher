@@ -3,6 +3,9 @@
 #include <fstream>
 #include <iomanip>
 #include <vector>
+#include <math.h>
+
+#define _USE_MATH_DEFINES
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/nonfree/features2d.hpp>
@@ -110,6 +113,8 @@ int main(int argc, char **argv) {
     sct.setg12(translation1, translation2, rodrigues1, rodrigues2);
     sct.triangulate(triagulated, outliersMask);
     
+    std::cout << triagulated << std::endl;
+    
     ///////////////////////////// 
     // Visualizzo/salvo le immagini e i match
     cv::Mat
@@ -120,9 +125,83 @@ int main(int argc, char **argv) {
     
     cv::imwrite("matches.pgm", window);
     
+    ////////////////////////////
+    // Ottengo le guess delle normali dei piani 
+    
+    // Lavoro su un sotto vettore:
+//     cv::Mat
+//         triagulated_subvector = cv::Mat::zeros(cv::Size(1,3), CV_64FC1);
+//     triagulated_subvector.at<cv::Vec3d>(0) = triagulated.at<cv::Vec3d>(0);
+    
+    std::vector<cv::Vec3d>
+        normals;
+        
+    std::vector< std::vector<cv::Vec3d> >
+        neighborhoodsVector;
+    
+    const double
+        epsilon = 0.15; //> Take a neighborhood of 0.3m around each point
+        
+    const double
+        thetaIncrement = 2*M_PI / 10;
+    
+    for (std::size_t actualPoint = 0; actualPoint < triagulated.cols; actualPoint++)
+    {
+        cv::Vec3d
+            point = triagulated.col(actualPoint),//.at<cv::Vec3d>(actualPoint),
+            normal;
+            
+        normal = point / cv::norm(point);        
+        normals.push_back(normal);
+        
+        // Compute a perpendicular vector
+        cv::Vec3d
+            spanner(0,1,-normal[1]/normal[2]); // in this way <spanner, normal> = 0
+            
+        std::cout << "<" << normal << ", " << spanner << "> = " << normal.dot(spanner) << std::endl;
+        
+        spanner = spanner / cv::norm(spanner) * epsilon;
+        
+        // Compute the neighborhood of each point
+        std::vector<cv::Vec3d>
+            neighborhood;
+        
+        for (double r = 0.1; r <= 1; r = r + 0.1)
+        {
+            for (double theta = 0; theta < 2*M_PI; theta = theta + thetaIncrement)
+            {
+                // Using the rodrigues formula construct the rotation matrix
+                cv::Matx33d
+                    W, I, R;
+                W(0,0) = 0;          W(0,1) = -normal[2]; W(0,2) =  normal(1); 
+                W(1,0) =  normal[2]; W(1,1) = 0;          W(1,2) = -normal[0]; 
+                W(2,0) = -normal[1]; W(2,1) =  normal[0]; W(2,2) = 0; 
+                
+//                 R = I.eye() + sin(theta)*W + (2 * (sin(theta/2)) * (sin(theta/2))) * W.;
+                
+                cv::Vec3d
+                    spannedPoint;
+                    
+                spannedPoint = point + r *(spanner + W*spanner*sin(theta) + (2 * (sin(theta/2)) * (sin(theta/2))) * W * W * spanner);
+                
+                std::cout << point << " - " << spannedPoint << std::endl;
+                
+                neighborhood.push_back(spannedPoint);
+            }
+        }
+        
+        std::cout << neighborhood.size() << std::endl;
+        
+        neighborhoodsVector.push_back(neighborhood);
+    }
+    
+//     std::cout << neighborhoodsVector.size() << " - " << triagulated.cols << std::endl;
+    
     ///////////////////////////// 
     // Converto i punti in point cloud e visualizzo la cloud
-    viewPointCloud(triagulated, colors);
+//     viewPointCloud(triagulated, colors);
+    
+    viewPointCloudNeighborhood(triagulated, neighborhoodsVector, colors);
     
     return 0;
 }

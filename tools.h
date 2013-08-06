@@ -53,4 +53,6 @@ void drawMatches(const cv::Mat &img1, const cv::Mat &img2, cv::Mat &window, cons
 /** Draw a point cloud
  */
 void viewPointCloud(const cv::Mat &triagulatedPoints, const std::vector< cv::Scalar > &colors);
+
+void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< std::vector<cv::Vec3d> > &neighborhoodsVector, const std::vector< cv::Scalar > &colors);
 #endif // TOOLS_H_
