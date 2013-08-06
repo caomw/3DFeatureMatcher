@@ -1,6 +1,7 @@
 %YAML:1.0
 NNDR:
-   epsilon: 0.5
+   epsilon: 0.4
+
 FeatureOptions:
    DetectorType: SURF
    DetectorMode: STATIC
@@ -14,3 +15,21 @@ FeatureOptions:
       Threshold: 25
       Octaves: 0
    ExtractorType: BRISK
+
+CameraSettings:
+   #Camera-IMU Calibration Parameters
+   rodriguesIC: [-1.2005, 1.1981, -1.2041]
+   translationIC: [0.0, 0.015, -0.051]
+
+   #Camera Matrix
+   Fx: 572.4765
+   Fy: 572.69354
+   Cx: 549.75189
+   Cy: 411.68039
+
+   #Distortion Coefficients
+   p1: -6.6e-05
+   p2: 0.000567
+   k0: -0.299957
+   k1: 0.124129
+   k2: -0.028357
