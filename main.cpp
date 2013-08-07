@@ -12,6 +12,7 @@
 
 #include "DescriptorsMatcher/descriptorsmatcher.h"
 #include "Triangulator/singlecameratriangulator.h"
+#include "Triangulator/neighborhoodsgenerator.h"
 #include "tools.h"
 
 #define IMG_1 "/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000750.pgm"
@@ -99,6 +100,9 @@ int main(int argc, char **argv) {
     cv::Vec3d
         rodrigues1(0.074931, -0.160281, 0.563678),
         rodrigues2(0.014587, -0.248119, 0.523502);
+    
+    cv::Matx44d
+        g12;
         
     cv::Mat
         triagulated /*= cv::Mat::zeros(cv::Size(N,3), CV_64FC1)*/;
@@ -110,10 +114,10 @@ int main(int argc, char **argv) {
         sct(fs);
         
     sct.setKeypoints(kpts1, kpts2, matches);
-    sct.setg12(translation1, translation2, rodrigues1, rodrigues2);
+    sct.setg12(translation1, translation2, rodrigues1, rodrigues2, g12);
     sct.triangulate(triagulated, outliersMask);
     
-    std::cout << triagulated << std::endl;
+//     std::cout << triagulated << std::endl;
     
     ///////////////////////////// 
     // Visualizzo/salvo le immagini e i match
@@ -126,76 +130,112 @@ int main(int argc, char **argv) {
     cv::imwrite("matches.pgm", window);
     
     ////////////////////////////
-    // Ottengo le guess delle normali dei piani 
+    // Ottengo le guess delle normali dei piani e un set di punti che campionano gli intorni dei punti triangolati
     
-    // Lavoro su un sotto vettore:
+//     // Lavoro su un solo punto per fare i test:
 //     cv::Mat
 //         triagulated_subvector = cv::Mat::zeros(cv::Size(1,3), CV_64FC1);
 //     triagulated_subvector.at<cv::Vec3d>(0) = triagulated.at<cv::Vec3d>(0);
     
-    std::vector<cv::Vec3d>
+    NeighborhoodsGenerator
+        ng(fs);
+        
+    cv::Mat
         normals;
         
-    std::vector< std::vector<cv::Vec3d> >
+    std::vector<cv::Mat>
         neighborhoodsVector;
+        
+    ng.computeNeighborhoodsByNormals(triagulated, normals, neighborhoodsVector);
+
+    ///////////////////////////// 
+    // Proietto i punti sulle 2 immagini e calcolo il residuo
     
-    const double
-        epsilon = 0.15; //> Take a neighborhood of 0.3m around each point
-        
-    const double
-        thetaIncrement = 2*M_PI / 10;
+    double
+        Fx, Fy, Cx, Cy;
     
-    for (std::size_t actualPoint = 0; actualPoint < triagulated.cols; actualPoint++)
-    {
-        cv::Vec3d
-            point = triagulated.col(actualPoint),//.at<cv::Vec3d>(actualPoint),
-            normal;
-            
-        normal = point / cv::norm(point);        
-        normals.push_back(normal);
+    fs["CameraSettings"]["Fx"] >> Fx;
+    fs["CameraSettings"]["Fy"] >> Fy;
+    fs["CameraSettings"]["Cx"] >> Cx;
+    fs["CameraSettings"]["Cy"] >> Cy;
+    
+    cv::Matx33d
+        cameraMatrix;
+
+    cameraMatrix(0,0) = Fx;
+    cameraMatrix(1,1) = Fy;
+    cameraMatrix(0,2) = Cx;
+    cameraMatrix(1,2) = Cy;
+    cameraMatrix(2,2) = 1;
+    
+    double
+        p1, p2, k0, k1, k2 ;
+    
+    fs["CameraSettings"]["p1"] >> p1;
+    fs["CameraSettings"]["p2"] >> p2;
+    fs["CameraSettings"]["k0"] >> k0;
+    fs["CameraSettings"]["k1"] >> k1;
+    fs["CameraSettings"]["k2"] >> k2;
+    
+    cv::Mat distortionCoefficients = cv::Mat(cv::Size(5,1), CV_64FC1, cv::Scalar(0));
+    
+    distortionCoefficients.at<double>(0) = k0;
+    distortionCoefficients.at<double>(1) = k1;
+    distortionCoefficients.at<double>(2) = p1;
+    distortionCoefficients.at<double>(3) = p2;
+    distortionCoefficients.at<double>(4) = k2;
+    
+    cv::Mat
+        t1 = cv::Mat::zeros(cv::Size(3,1),cv::DataType<float>::type), 
+        r1 = cv::Mat::zeros(cv::Size(3,1),cv::DataType<float>::type);
         
-        // Compute a perpendicular vector
-        cv::Vec3d
-            spanner(0,1,-normal[1]/normal[2]); // in this way <spanner, normal> = 0
-            
-        std::cout << "<" << normal << ", " << spanner << "> = " << normal.dot(spanner) << std::endl;
+    cv::Vec3d 
+        t2, r2;
         
-        spanner = spanner / cv::norm(spanner) * epsilon;
+    decomposeTransformation(g12.inv(), r2, t2);
+    
+    std::cout << g12 << std::endl << g12.inv() << std::endl;
+    
+    cv::Ptr<cv::Mat>
+        imagePoints1,
+        imagePoints2;
         
-        // Compute the neighborhood of each point
-        std::vector<cv::Vec3d>
-            neighborhood;
+    std::vector<cv::Mat>
+        imagePointsVector1,
+        imagePointsVector2;
+    
+    for (std::size_t actualNeighborIndex = 0; actualNeighborIndex < neighborhoodsVector.size(); actualNeighborIndex++)
+    {    
+        imagePoints1 = new cv::Mat(cv::Size(1,1), CV_64FC2, cv::Scalar(0,0));
+        imagePoints2 = new cv::Mat(cv::Size(1,1), CV_64FC2, cv::Scalar(0,0));
         
-        for (double r = 0.1; r <= 1; r = r + 0.1)
-        {
-            for (double theta = 0; theta < 2*M_PI; theta = theta + thetaIncrement)
-            {
-                // Using the rodrigues formula construct the rotation matrix
-                cv::Matx33d
-                    W, I, R;
-                W(0,0) = 0;          W(0,1) = -normal[2]; W(0,2) =  normal(1); 
-                W(1,0) =  normal[2]; W(1,1) = 0;          W(1,2) = -normal[0]; 
-                W(2,0) = -normal[1]; W(2,1) =  normal[0]; W(2,2) = 0; 
-                
-//                 R = I.eye() + sin(theta)*W + (2 * (sin(theta/2)) * (sin(theta/2))) * W.;
-                
-                cv::Vec3d
-                    spannedPoint;
-                    
-                spannedPoint = point + r *(spanner + W*spanner*sin(theta) + (2 * (sin(theta/2)) * (sin(theta/2))) * W * W * spanner);
-                
-                std::cout << point << " - " << spannedPoint << std::endl;
-                
-                neighborhood.push_back(spannedPoint);
-            }
-        }
+        cv::projectPoints(neighborhoodsVector.at(actualNeighborIndex), t1, r1, cameraMatrix, distortionCoefficients, *imagePoints1);
+        cv::projectPoints(neighborhoodsVector.at(actualNeighborIndex), t2, r2, cameraMatrix, distortionCoefficients, *imagePoints2);
         
-        std::cout << neighborhood.size() << std::endl;
+//         std::cout << neighborhoodsVector.at(actualNeighborIndex) << std::endl;
+//         std::cout << imagePoints << std::endl;
         
-        neighborhoodsVector.push_back(neighborhood);
+        imagePointsVector1.push_back(*imagePoints1);
+        imagePointsVector2.push_back(*imagePoints2);
     }
     
-//     std::cout << neighborhoodsVector.size() << " - " << triagulated.cols << std::endl;
+    cv::Mat
+        test1, test2, img1_BGR, img2_BGR;
+        
+    cv::cvtColor(img1, img1_BGR, CV_GRAY2BGR);
+    cv::cvtColor(img2, img2_BGR, CV_GRAY2BGR);
+    
+    drawBackProjectedPoints(img1_BGR, test1, imagePointsVector1, colors);
+    drawBackProjectedPoints(img2_BGR, test2, imagePointsVector2, colors);
+    
+    cv::imwrite("test1.pgm", test1);
+    cv::imwrite("test2.pgm", test2);
+    
+    cv::namedWindow("test1");
+    cv::imshow("test1", test1);
+    cv::namedWindow("test2");
+    cv::imshow("test2", test2);
+    cv::waitKey();
     
     ///////////////////////////// 
     // Converto i punti in point cloud e visualizzo la cloud

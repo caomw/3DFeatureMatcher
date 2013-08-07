@@ -2,6 +2,11 @@
 NNDR:
    epsilon: 0.4
 
+Neighborhoods:
+   epsilon: 0.15
+   thetas: 10
+   rays: 10
+
 FeatureOptions:
    DetectorType: SURF
    DetectorMode: STATIC
@@ -33,3 +38,6 @@ CameraSettings:
    k0: -0.299957
    k1: 0.124129
    k2: -0.028357
+
+   #Outliers threshold
+   zThreshold: 2.5

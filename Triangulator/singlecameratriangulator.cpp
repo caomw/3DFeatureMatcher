@@ -104,7 +104,7 @@ SingleCameraTriangulator::SingleCameraTriangulator(cv::FileStorage &settings)
     
 }
 
-void SingleCameraTriangulator::setg12(const cv::Vec3d& T1, const cv::Vec3d& T2, const cv::Vec3d& rodrigues1, const cv::Vec3d& rodrigues2)
+void SingleCameraTriangulator::setg12(const cv::Vec3d& T1, const cv::Vec3d& T2, const cv::Vec3d& rodrigues1, const cv::Vec3d& rodrigues2, cv::Matx44d &g12)
 {
     // Compute CAMERA2 to CAMERA1 transformation
     cv::Matx33d
@@ -122,6 +122,8 @@ void SingleCameraTriangulator::setg12(const cv::Vec3d& T1, const cv::Vec3d& T2, 
     g_12_ = new cv::Matx44d();
     
     (*g_12_) = (*g_IC_).inv() * g2.inv() * g1 * (*g_IC_);
+    
+    g12 = (*g_12_);
 }
 
 void SingleCameraTriangulator::setKeypoints(const std::vector< cv::KeyPoint >& kpts1, const std::vector< cv::KeyPoint >& kpts2, const std::vector< cv::DMatch >& matches)

@@ -44,12 +44,12 @@ class SingleCameraTriangulator
 public:
     SingleCameraTriangulator( cv::FileStorage &settings );
 
-    void setg12(const cv::Vec3d &T1, const cv::Vec3d &T2, const cv::Vec3d &rodrigues1, const cv::Vec3d &rodrigues2 );
+    void setg12(const cv::Vec3d& T1, const cv::Vec3d& T2, const cv::Vec3d& rodrigues1, const cv::Vec3d& rodrigues2, cv::Matx44d &g12);
     
     void setKeypoints( const std::vector<cv::KeyPoint> &kpts1, const std::vector<cv::KeyPoint> &kpts2, const std::vector<cv::DMatch> &matches);
     
     void triangulate( cv::Mat &triangulatedPoints, std::vector<bool> &outliersMask );
-    
+
 // Private methods
 private:
     SingleCameraTriangulator(); // Avoid the default constructor

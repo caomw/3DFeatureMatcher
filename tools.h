@@ -31,6 +31,8 @@
 #ifndef TOOLS_H_
 #define TOOLS_H_
 
+#include <math.h>
+
 #include <opencv2/opencv.hpp>
 
 #include <pcl/common/common_headers.h>
@@ -38,21 +40,33 @@
 
 #include <boost/thread/thread.hpp>
 
+void computeRelativeRotation(const cv::Vec3d& r1, const cv::Vec3d& r2, cv::Vec3d& r21);
+
 /** Compose a 4x4 transform matrix from R and T
  */
 void composeTransformation(const cv::Matx33d &R, const cv::Vec3d &T, cv::Matx44d &G);
+
+/** Decompose a 4x4 transform matrix to R and T
+ */
+void decomposeTransformation(const cv::Matx44d &G, cv::Vec3d &R, cv::Vec3d &T);
 
 /** Generate a random color (RGB)
  */
 cv::Scalar random_color(cv::RNG &rng);
 
+/** Generate a skew symmetric matrix from a vector
+ */
+void getSkewMatrix (const cv::Vec3d &vec, cv::Matx33d &skew);
+
 /** Draw the matches and return the colors used
  */
 void drawMatches(const cv::Mat &img1, const cv::Mat &img2, cv::Mat &window, const std::vector<cv::KeyPoint> &kpts1, const std::vector<cv::KeyPoint> &kpts2, const std::vector<cv::DMatch> &matches, std::vector<cv::Scalar> &colors, const std::vector<bool> outliersMask);
+
+void drawBackProjectedPoints(const cv::Mat &input, cv::Mat &output, const std::vector<cv::Mat> &points, const std::vector< cv::Scalar > &colors);
 
 /** Draw a point cloud
  */
 void viewPointCloud(const cv::Mat &triagulatedPoints, const std::vector< cv::Scalar > &colors);
 
-void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< std::vector<cv::Vec3d> > &neighborhoodsVector, const std::vector< cv::Scalar > &colors);
+void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< cv::Mat > &neighborhoodsVector, const std::vector< cv::Scalar > &colors);
 #endif // TOOLS_H_

@@ -43,10 +43,32 @@ void composeTransformation(const cv::Matx33d &R, const cv::Vec3d &T, cv::Matx44d
     G(3,0) = 0; G(3,1) = 0; G(3,2) = 0; G(3,3) = 1;
 }
 
+void decomposeTransformation(const cv::Matx44d &G, cv::Vec3d &r, cv::Vec3d &t)
+{
+    cv::Matx33d
+        R;
+    // Take R from top left
+    R(0,0) = G(0,0); R(0,1) = G(0,1); R(0,2) = G(0,2);
+    R(1,0) = G(1,0); R(1,1) = G(1,1); R(1,2) = G(1,2);
+    R(2,0) = G(2,0); R(2,1) = G(2,1); R(2,2) = G(2,2);
+    
+    cv::Rodrigues(R, r);
+    
+    // Take T from top right
+    t(0) = G(0,3); t(1) = G(1,3); t(2) = G(2,3);
+}
+
 cv::Scalar random_color(cv::RNG &rng)
 {
     int color = rng.next();
     return CV_RGB(color&255, (color>>8)&255, (color>>16)&255);
+}
+
+void getSkewMatrix (const cv::Vec3d &vec, cv::Matx33d &skew)
+{
+    skew(0,0) =  0;      skew(0,1) = -vec[2]; skew(0,2) =  vec(1); 
+    skew(1,0) =  vec[2]; skew(1,1) =  0;      skew(1,2) = -vec[0]; 
+    skew(2,0) = -vec[1]; skew(2,1) =  vec[0]; skew(2,2) =  0; 
 }
 
 /** Draw the matches and return the colors used
@@ -56,7 +78,7 @@ void drawMatches(const cv::Mat &img1, const cv::Mat &img2, cv::Mat &window, cons
     window = cv::Mat(cv::Size(img1.cols * 2, img1.rows), CV_8UC3, cv::Scalar(0));
     
     cv::Mat
-    img1BGR, img2BGR;
+        img1BGR, img2BGR;
     
     cv::cvtColor(img1, img1BGR, CV_GRAY2BGR);
     cv::cvtColor(img2, img2BGR, CV_GRAY2BGR);
@@ -65,22 +87,23 @@ void drawMatches(const cv::Mat &img1, const cv::Mat &img2, cv::Mat &window, cons
     img2BGR.copyTo(window(cv::Rect(img1.cols,0,img2.cols,img2.rows)));
     
     cv::RNG 
-    rng(0xFFFFFFFF);
+        rng(0xFFF0FF0F);
     
     for (int i = 0; i < matches.size(); i++)
     {
         if (outliersMask[i])
         {
-            cv::Scalar color = random_color(rng);
+            cv::Scalar 
+                color = random_color(rng);
             colors.push_back(color);
             
             int
-            idx1 = matches.at(i).queryIdx,
-            idx2 = matches.at(i).trainIdx;
+                idx1 = matches.at(i).queryIdx,
+                idx2 = matches.at(i).trainIdx;
             
             cv::Point2f
-            pt1 = kpts1.at(idx1).pt,
-            pt2 = kpts2.at(idx2).pt;
+                pt1 = kpts1.at(idx1).pt,
+                pt2 = kpts2.at(idx2).pt;
             
             pt2.x = pt2.x + img1.cols;
             
@@ -97,6 +120,31 @@ void drawMatches(const cv::Mat &img1, const cv::Mat &img2, cv::Mat &window, cons
     }
 }
 
+void drawBackProjectedPoints(const cv::Mat &input, cv::Mat &output, const std::vector<cv::Mat> &points, const std::vector< cv::Scalar > &colors)
+{
+    output = input;
+    
+//     output.at<cv::Vec3b>(1,1) = cv::Vec3b(255,0,0);
+    
+    for (std::size_t i = 0; i < points.size(); i++)
+    {
+//         std::cout << points.at(i) << std::endl;
+//         std::cout << points.at(i).rows << " - " << points.at(i).cols << std::endl;
+        
+        for (std::size_t k = 0; k < points.at(i).rows; k++)
+        {
+            cv::Point2d
+                point(points.at(i).at<cv::Vec2d>(k));
+                
+            cv::Point2i
+                pixel(round(point.x),round(point.y));
+                
+//             std::cout << point << " - " << pixel << " - " << colors.at(i)[0] << " " << colors.at(i)[1] << " " << colors.at(i)[2] << std::endl;
+                
+            output.at<cv::Vec3b>(pixel) = cv::Vec3b(colors.at(i)[0], colors.at(i)[1], colors.at(i)[2]);
+        }
+    }
+}
 
 void viewPointCloud(const cv::Mat &triagulatedPoints, const std::vector< cv::Scalar > &colors)
 {
@@ -142,7 +190,7 @@ void viewPointCloud(const cv::Mat &triagulatedPoints, const std::vector< cv::Sca
     }
 }
 
-void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< std::vector<cv::Vec3d> > &neighborhoodsVector, const std::vector< cv::Scalar > &colors)
+void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< cv::Mat > &neighborhoodsVector, const std::vector< cv::Scalar > &colors)
 {
     ///////////////////////////// 
     // Converto i punti in point cloud
@@ -161,15 +209,15 @@ void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< s
         
         cloud->points.push_back(actual);
         
-        for (std::size_t l = 0; l < neighborhoodsVector[i].size(); l++)
+        for (std::size_t l = 0; l < neighborhoodsVector[i].cols; l++)
         {
             pcl::PointXYZRGB actualNeighbor;
             
-            std::vector<cv::Vec3d>
-                neighborhoods = neighborhoodsVector[i];
+            cv::Mat
+                neighborhood = neighborhoodsVector[i];
             
             cv::Vec3d
-            point = neighborhoods[l];
+                point = neighborhood.at<cv::Vec3d>(l);
             
             actualNeighbor.x = point[0];
             actualNeighbor.y = point[1];
@@ -192,7 +240,7 @@ void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< s
     viewer->setBackgroundColor(0,0,0);
     pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
     viewer->addPointCloud<pcl::PointXYZRGB>(cloud, rgb, "Triangulated points");
-    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 15, "Triangulated points");
+    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "Triangulated points");
     viewer->addCoordinateSystem(1.0);
     viewer->initCameraParameters();
     

@@ -2,6 +2,11 @@
 NNDR:
    epsilon: 0.4
 
+Neighborhoods:
+   epsilon: 0.15
+   thetas: 30
+   rays: 10
+
 FeatureOptions:
    DetectorType: SURF
    DetectorMode: STATIC

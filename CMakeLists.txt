@@ -22,7 +22,7 @@ add_definitions( ${PCL_DEFINITIONS} )
 
 find_package (Threads REQUIRED)
 
-add_executable(3dfeaturematcher Triangulator/singlecameratriangulator.cpp DescriptorsMatcher/descriptorsmatcher.cpp tools.cpp main.cpp)
+add_executable(3dfeaturematcher Triangulator/neighborhoodsgenerator.cpp Triangulator/singlecameratriangulator.cpp DescriptorsMatcher/descriptorsmatcher.cpp tools.cpp main.cpp)
 
 target_link_libraries(3dfeaturematcher ${OpenCV_LIBS} ${PCL_LIBRARIES} )
 
