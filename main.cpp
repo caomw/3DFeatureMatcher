@@ -192,7 +192,7 @@ int main(int argc, char **argv) {
     cv::Vec3d 
         t2, r2;
         
-    decomposeTransformation(g12.inv(), r2, t2);
+    decomposeTransformation(g12, r2, t2);
     
     std::cout << g12 << std::endl << g12.inv() << std::endl;
     
@@ -209,8 +209,8 @@ int main(int argc, char **argv) {
         imagePoints1 = new cv::Mat(cv::Size(1,1), CV_64FC2, cv::Scalar(0,0));
         imagePoints2 = new cv::Mat(cv::Size(1,1), CV_64FC2, cv::Scalar(0,0));
         
-        cv::projectPoints(neighborhoodsVector.at(actualNeighborIndex), t1, r1, cameraMatrix, distortionCoefficients, *imagePoints1);
-        cv::projectPoints(neighborhoodsVector.at(actualNeighborIndex), t2, r2, cameraMatrix, distortionCoefficients, *imagePoints2);
+        cv::projectPoints(neighborhoodsVector.at(actualNeighborIndex), r1, t1, cameraMatrix, distortionCoefficients, *imagePoints1);
+        cv::projectPoints(neighborhoodsVector.at(actualNeighborIndex), r2, t2, cameraMatrix, distortionCoefficients, *imagePoints2);
         
 //         std::cout << neighborhoodsVector.at(actualNeighborIndex) << std::endl;
 //         std::cout << imagePoints << std::endl;
