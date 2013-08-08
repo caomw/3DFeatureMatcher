@@ -17,6 +17,8 @@
 #include "Triangulator/neighborhoodsgenerator.h"
 #include "tools.h"
 
+#define METODO_B_
+
 #define IMG_1 "/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000750.pgm"
 #define IMG_2 "/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000770.pgm"
 
@@ -38,33 +40,37 @@ void evaluateNormal( const double *par, int m_dat,
     dataStruct 
         *D = (dataStruct*) data;
     cv::Vec3d 
-        normal((*par),(*par+1),(*par+2));
+        normal(*par,*(par+1),*(par+2));
         
+#ifdef METODO_A_
     std::vector<cv::Vec3d>
         pointGroup;
-//     cv::Mat
-//         neighborhood;
-//     D->ng->computeNeighborhoodByNormal(*(D->point), normal, neighborhood);
-//     cv::Mat
-//         imagePoints1, imagePoints2;
-//     std::vector<double> 
-//         residuals
-//     D->sct->projectPointsAndComputeResidual(neighborhood, imagePoints1, imagePoints2, residuals);
-//     for (std::size_t i = 0; i < m_dat; i++)
-//     {
-//         fvec[i] = residuals.at(i);
-//     }
-        
     std::vector<Pixel>
         imagePoints1, imagePoints2;
         
     D->sct->extractPixelsContourAndGet3DPoints(*(D->point), normal, imagePoints1, pointGroup);
     D->sct->projectPointsToImage2(pointGroup, imagePoints2);
-    
+
     for (std::size_t i = 0; i < m_dat; i++)
     {
         fvec[i] = imagePoints1.at(i).i_ - imagePoints2.at(i).i_;
     }
+#endif // METODO_A_
+
+#ifdef METODO_B_
+    cv::Mat
+        neighborhood;
+    D->ng->computeNeighborhoodByNormal(*(D->point), normal, neighborhood);
+    cv::Mat
+        imagePoints1, imagePoints2;
+    std::vector<double> 
+        residuals;
+    D->sct->projectPointsAndComputeResidual(neighborhood, imagePoints1, imagePoints2, residuals);
+    for (std::size_t i = 0; i < m_dat; i++)
+    {
+        fvec[i] = residuals.at(i);
+    }
+#endif // METODO_B_
 }
 
 /** Displays the usage message
@@ -229,8 +235,7 @@ int main(int argc, char **argv) {
         /* auxiliary parameters */
         lm_status_struct status;
         lm_control_struct control = lm_control_double;
-//         control.patience = 15000; /* allow more iterations */
-        control.epsilon = 0.001; // Risultati migliori con 1e-4
+        control.epsilon = 1.e-8;
         lm_princon_struct princon = lm_princon_std;
         princon.flags = 3;
         
@@ -267,17 +272,17 @@ int main(int argc, char **argv) {
 //         std::cout << std::endl;
     }
     
-    cv::Mat
-        test1, test2, img1_BGR, img2_BGR;
-        
-    cv::cvtColor(img1, img1_BGR, CV_GRAY2BGR);
-    cv::cvtColor(img2, img2_BGR, CV_GRAY2BGR);
-    
-    drawBackProjectedPoints(img1_BGR, test1, imagePointsVector1, colors);
-    drawBackProjectedPoints(img2_BGR, test2, imagePointsVector2, colors);
-    
-    cv::imwrite("test1.pgm", test1);
-    cv::imwrite("test2.pgm", test2);
+//     cv::Mat
+//         test1, test2, img1_BGR, img2_BGR;
+//         
+//     cv::cvtColor(img1, img1_BGR, CV_GRAY2BGR);
+//     cv::cvtColor(img2, img2_BGR, CV_GRAY2BGR);
+//     
+//     drawBackProjectedPoints(img1_BGR, test1, imagePointsVector1, colors);
+//     drawBackProjectedPoints(img2_BGR, test2, imagePointsVector2, colors);
+//     
+//     cv::imwrite("test1.pgm", test1);
+//     cv::imwrite("test2.pgm", test2);
     
 //     cv::namedWindow("test1");
 //     cv::imshow("test1", test1);

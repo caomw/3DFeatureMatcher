@@ -102,6 +102,9 @@ SingleCameraTriangulator::SingleCameraTriangulator(cv::FileStorage &settings)
     // 6 Get the outliers threshold
     settings["CameraSettings"]["zThreshold"] >> z_threshold_;
     
+    
+    settings["Neighborhoods"]["pixelsRay"] >> pixels_ray_;
+    
 }
 
 void SingleCameraTriangulator::setImages(const cv::Mat& img1, const cv::Mat& img2)
@@ -327,16 +330,14 @@ void SingleCameraTriangulator::projectPointsAndComputeResidual(const cv::Mat& po
 
 void SingleCameraTriangulator::extractPixelsContour(const cv::Point2d &point, std::vector< Pixel >& pixels)
 {
-    int ray = 15; ///TODO: move to the file settings
-    
     // TODO: prepare a lookuptable or something faster than this
     // Check all the pixel in the square centered at the interest point
-    for(int i = -ray; i <= ray; i++)
+    for(int i = -pixels_ray_; i <= pixels_ray_; i++)
     {
-        for(int j = -ray; j <= ray; j++)
+        for(int j = -pixels_ray_; j <= pixels_ray_; j++)
         {
             // If the pixel is inside the circle of ray: ray, take it
-            if (sqrt(i^2 + j^2) <= 15)
+            if (i*i + j*j <= pixels_ray_*pixels_ray_)
             {
                 Pixel p;
                 p.x_ = point.x + i;
@@ -364,7 +365,7 @@ void SingleCameraTriangulator::projectPointToPlane(const cv::Vec3d& idealPoint, 
      * The system to solve is:
      * 
      * n(p-p0)=0 -> the plane equation
-     * kv=0 -> the line equation
+     * kv=p -> the vector mul by a value k reach the plane -> p is our point!
      * 
      * That give these equation to be solved:
      * 
@@ -424,6 +425,8 @@ void SingleCameraTriangulator::extractPixelsContourAndGet3DPoints(const cv::Vec3
     
     cv::undistortPoints(pixelMat, undistortedPixelMat, *camera_matrix_, *distortion_coefficients_);
     
+//     std::cout << undistortedPixelMat << std::endl;
+    
     // For each pixel get a 3D point and store in the vector
     for (std::size_t i = 0; i < pixels.size(); i++)
     {
@@ -438,6 +441,15 @@ void SingleCameraTriangulator::extractPixelsContourAndGet3DPoints(const cv::Vec3
         
         pointsGroup.push_back(newPoint);
     }
+    
+    cv::Mat
+        test1, img1_BGR = cv::imread("test1.pgm", CV_LOAD_IMAGE_COLOR);
+    
+    drawBackProjectedPoints(img1_BGR, test1, pixelMat, cv::Scalar(255,0,0));
+    
+    cv::imwrite("test1.pgm", test1);
+
+//     viewPointCloud(pointsGroup);
 }
 
 void SingleCameraTriangulator::projectPointsToImage2(const std::vector< cv::Vec3d >& pointsGroup, std::vector< Pixel >& pixels)
@@ -463,5 +475,16 @@ void SingleCameraTriangulator::projectPointsToImage2(const std::vector< cv::Vec3
         
         pixels.push_back(p);
     }
+    
+    cv::Mat
+        test2, img2_BGR = cv::imread("test2.pgm", CV_LOAD_IMAGE_COLOR);
+    
+    drawBackProjectedPoints(img2_BGR, test2, imagePoints2, cv::Scalar(255,0,0));
+    
+    cv::imwrite("test2.pgm", test2);
+    
+//     cv::namedWindow("test2");
+//     cv::imshow("test2", img2_BGR);
+//     cv::waitKey();
 }
 

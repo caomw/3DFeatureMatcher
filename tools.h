@@ -69,10 +69,12 @@ float getBilinearInterpPix32f ( cv::Mat &cv_img, float x, float y );
 void drawMatches(const cv::Mat &img1, const cv::Mat &img2, cv::Mat &window, const std::vector<cv::KeyPoint> &kpts1, const std::vector<cv::KeyPoint> &kpts2, const std::vector<cv::DMatch> &matches, std::vector<cv::Scalar> &colors, const std::vector<bool> outliersMask);
 
 void drawBackProjectedPoints(const cv::Mat &input, cv::Mat &output, const std::vector<cv::Mat> &points, const std::vector< cv::Scalar > &colors);
+void drawBackProjectedPoints(const cv::Mat &input, cv::Mat &output, const cv::Mat &points, const cv::Scalar &colors);
 
 /** Draw a point cloud
  */
 void viewPointCloud(const cv::Mat &triagulatedPoints, const std::vector< cv::Scalar > &colors);
+void viewPointCloud(const std::vector< cv::Vec3d >& pointsGroup);
 
 /** Draw a point cloud and given normals
  */

@@ -137,6 +137,9 @@ private:
         
     double
         z_threshold_; //> Threshold to define too far outliers TODO: remove magic numbers
+        
+    int
+        pixels_ray_;
 };
 
 #endif // SINGLE_CAMERA_TRIANGULATOR_H_
