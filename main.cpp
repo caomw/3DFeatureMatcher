@@ -5,6 +5,8 @@
 #include <vector>
 #include <math.h>
 
+#include <lmmin.h>
+
 #define _USE_MATH_DEFINES
 
 #include <opencv2/opencv.hpp>
@@ -20,6 +22,50 @@
 
 // IMG_1 pose: TIME : 25027785 POS : 4.467813 3.420069 0.806258 0.074931 -0.160281 0.563678
 // IMG_2 pose: TIME : 25694439 POS : 5.034858 3.667427 0.833424 0.014587 -0.248119 0.523502
+
+typedef struct {
+
+    SingleCameraTriangulator *sct;
+    NeighborhoodsGenerator *ng;
+    cv::Vec3d *point;
+    
+} dataStruct;
+
+void evaluateNormal( const double *par, int m_dat,
+                     const void *data, double *fvec,
+                     int *info )
+{
+    dataStruct 
+        *D = (dataStruct*) data;
+    cv::Vec3d 
+        normal((*par),(*par+1),(*par+2));
+        
+    std::vector<cv::Vec3d>
+        pointGroup;
+//     cv::Mat
+//         neighborhood;
+//     D->ng->computeNeighborhoodByNormal(*(D->point), normal, neighborhood);
+//     cv::Mat
+//         imagePoints1, imagePoints2;
+//     std::vector<double> 
+//         residuals
+//     D->sct->projectPointsAndComputeResidual(neighborhood, imagePoints1, imagePoints2, residuals);
+//     for (std::size_t i = 0; i < m_dat; i++)
+//     {
+//         fvec[i] = residuals.at(i);
+//     }
+        
+    std::vector<Pixel>
+        imagePoints1, imagePoints2;
+        
+    D->sct->extractPixelsContourAndGet3DPoints(*(D->point), normal, imagePoints1, pointGroup);
+    D->sct->projectPointsToImage2(pointGroup, imagePoints2);
+    
+    for (std::size_t i = 0; i < m_dat; i++)
+    {
+        fvec[i] = imagePoints1.at(i).i_ - imagePoints2.at(i).i_;
+    }
+}
 
 /** Displays the usage message
  */
@@ -108,7 +154,7 @@ int main(int argc, char **argv) {
         triagulated /*= cv::Mat::zeros(cv::Size(N,3), CV_64FC1)*/;
         
     std::vector<bool>
-        outliersMask; //> Mask to distinguis between inliers (1) and outliers (0) points. As example those with negative z are outliers.
+        outliersMask; //> Mask to distinguish between inliers (1) and outliers (0) points. As example those with negative z are outliers.
         
     SingleCameraTriangulator 
         sct(fs);
@@ -140,83 +186,85 @@ int main(int argc, char **argv) {
     NeighborhoodsGenerator
         ng(fs);
         
-    cv::Mat
-        normals;
+//     std::vector<cv::Vec3d>
+//         normalsVector;
+    pcl::PointCloud<pcl::Normal>::Ptr
+        normalsCloud (new pcl::PointCloud<pcl::Normal>());
         
     std::vector<cv::Mat>
         neighborhoodsVector;
-        
-    ng.computeNeighborhoodsByNormals(triagulated, normals, neighborhoodsVector);
-
-    ///////////////////////////// 
-    // Proietto i punti sulle 2 immagini e calcolo il residuo
-    
-    double
-        Fx, Fy, Cx, Cy;
-    
-    fs["CameraSettings"]["Fx"] >> Fx;
-    fs["CameraSettings"]["Fy"] >> Fy;
-    fs["CameraSettings"]["Cx"] >> Cx;
-    fs["CameraSettings"]["Cy"] >> Cy;
-    
-    cv::Matx33d
-        cameraMatrix;
-
-    cameraMatrix(0,0) = Fx;
-    cameraMatrix(1,1) = Fy;
-    cameraMatrix(0,2) = Cx;
-    cameraMatrix(1,2) = Cy;
-    cameraMatrix(2,2) = 1;
-    
-    double
-        p1, p2, k0, k1, k2 ;
-    
-    fs["CameraSettings"]["p1"] >> p1;
-    fs["CameraSettings"]["p2"] >> p2;
-    fs["CameraSettings"]["k0"] >> k0;
-    fs["CameraSettings"]["k1"] >> k1;
-    fs["CameraSettings"]["k2"] >> k2;
-    
-    cv::Mat distortionCoefficients = cv::Mat(cv::Size(5,1), CV_64FC1, cv::Scalar(0));
-    
-    distortionCoefficients.at<double>(0) = k0;
-    distortionCoefficients.at<double>(1) = k1;
-    distortionCoefficients.at<double>(2) = p1;
-    distortionCoefficients.at<double>(3) = p2;
-    distortionCoefficients.at<double>(4) = k2;
-    
-    cv::Mat
-        t1 = cv::Mat::zeros(cv::Size(3,1),cv::DataType<float>::type), 
-        r1 = cv::Mat::zeros(cv::Size(3,1),cv::DataType<float>::type);
-        
-    cv::Vec3d 
-        t2, r2;
-        
-    decomposeTransformation(g12, r2, t2);
-    
-    std::cout << g12 << std::endl << g12.inv() << std::endl;
-    
-    cv::Ptr<cv::Mat>
-        imagePoints1,
-        imagePoints2;
         
     std::vector<cv::Mat>
         imagePointsVector1,
         imagePointsVector2;
     
-    for (std::size_t actualNeighborIndex = 0; actualNeighborIndex < neighborhoodsVector.size(); actualNeighborIndex++)
-    {    
-        imagePoints1 = new cv::Mat(cv::Size(1,1), CV_64FC2, cv::Scalar(0,0));
-        imagePoints2 = new cv::Mat(cv::Size(1,1), CV_64FC2, cv::Scalar(0,0));
+    std::vector< std::vector<double> >
+        residualsVectors;
         
-        cv::projectPoints(neighborhoodsVector.at(actualNeighborIndex), r1, t1, cameraMatrix, distortionCoefficients, *imagePoints1);
-        cv::projectPoints(neighborhoodsVector.at(actualNeighborIndex), r2, t2, cameraMatrix, distortionCoefficients, *imagePoints2);
+    sct.setImages(img1, img2);
+    
+    int
+        numberOfRays, numberOfThetas;
         
-//         std::cout << neighborhoodsVector.at(actualNeighborIndex) << std::endl;
-//         std::cout << imagePoints << std::endl;
+    fs["Neighborhoods"]["rays"] >> numberOfRays;
+    fs["Neighborhoods"]["thetas"] >> numberOfThetas;
+    
+    int
+        m_dat = numberOfRays * numberOfThetas;
+    
+    for (std::size_t actualPointIndex = 0; actualPointIndex < triagulated.cols; actualPointIndex++)
+    {
+        /* parameter vector */
+        int n_par = 3;  /* number of parameters in model function f */
         
-        imagePointsVector1.push_back(*imagePoints1);
-        imagePointsVector2.push_back(*imagePoints2);
+        /* data points */
+        cv::Vec3d 
+            point = triagulated.col(actualPointIndex),
+            normal = (-1) * point / cv::norm(point); /* the initial guess */
+            
+        double par[3] = { normal[0], normal[1], normal[2] };   
+        
+        dataStruct data = { &sct, &ng, &point };
+        
+        /* auxiliary parameters */
+        lm_status_struct status;
+        lm_control_struct control = lm_control_double;
+//         control.patience = 15000; /* allow more iterations */
+        control.epsilon = 0.001; // Risultati migliori con 1e-4
+        lm_princon_struct princon = lm_princon_std;
+        princon.flags = 3;
+        
+        lmmin( n_par, par, m_dat, (const void*) &data, evaluateNormal,
+               lm_printout_std, &control, &princon, &status );
+        
+        pcl::Normal
+            n(par[0], par[1], par[2]);
+            
+        normalsCloud->push_back(n);
+        
+//         cv::Mat
+//             neighborhood;
+//         cv::Vec3d
+//             point = triagulated.col(actualPointIndex),
+//             normal;
+//         ng.computeNeighborhoodByNormal(point, normal, neighborhood);
+//         normalsVector.push_back(normal);
+//         neighborhoodsVector.push_back(neighborhood);
+//         
+//         cv::Mat
+//             imagePoints1, imagePoints2;
+//         std::vector<double>
+//             residuals;
+//         sct.projectPointsAndComputeResidual(neighborhood, imagePoints1, imagePoints2, residuals);
+//         residualsVectors.push_back(residuals);
+//         imagePointsVector1.push_back(imagePoints1);
+//         imagePointsVector2.push_back(imagePoints2);
+//         
+//         for (std::vector<double>::iterator it = residuals.begin(); it != residuals.end(); it++)
+//         {
+//             std::cout << (*it) << " - ";
+//         }
+//         std::cout << std::endl;
     }
     
     cv::Mat
@@ -231,17 +279,18 @@ int main(int argc, char **argv) {
     cv::imwrite("test1.pgm", test1);
     cv::imwrite("test2.pgm", test2);
     
-    cv::namedWindow("test1");
-    cv::imshow("test1", test1);
-    cv::namedWindow("test2");
-    cv::imshow("test2", test2);
-    cv::waitKey();
+//     cv::namedWindow("test1");
+//     cv::imshow("test1", test1);
+//     cv::namedWindow("test2");
+//     cv::imshow("test2", test2);
+//     cv::waitKey();
     
     ///////////////////////////// 
     // Converto i punti in point cloud e visualizzo la cloud
 //     viewPointCloud(triagulated, colors);
     
-    viewPointCloudNeighborhood(triagulated, neighborhoodsVector, colors);
+//     viewPointCloudNeighborhood(triagulated, neighborhoodsVector, colors);
+    viewPointCloudAndNormals(triagulated, normalsCloud, colors);
     
     return 0;
 }

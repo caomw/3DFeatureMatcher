@@ -4,7 +4,7 @@ NNDR:
 
 Neighborhoods:
    epsilon: 0.15
-   thetas: 10
+   thetas: 30
    rays: 10
 
 FeatureOptions:

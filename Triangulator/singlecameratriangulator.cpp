@@ -104,6 +104,13 @@ SingleCameraTriangulator::SingleCameraTriangulator(cv::FileStorage &settings)
     
 }
 
+void SingleCameraTriangulator::setImages(const cv::Mat& img1, const cv::Mat& img2)
+{
+    img_1_ = new cv::Mat(img1);
+    img_2_ = new cv::Mat(img2);
+}
+
+
 void SingleCameraTriangulator::setg12(const cv::Vec3d& T1, const cv::Vec3d& T2, const cv::Vec3d& rodrigues1, const cv::Vec3d& rodrigues2, cv::Matx44d &g12)
 {
     // Compute CAMERA2 to CAMERA1 transformation
@@ -208,3 +215,253 @@ void SingleCameraTriangulator::triangulate(cv::Mat& triangulatedPoints, std::vec
         triangulatedPoints.at<double>(2, k) = triagulated_[k][2];
     }
 }
+
+void SingleCameraTriangulator::projectPointsToImages( const std::vector< cv::Mat >& pointsGroupVector, std::vector< cv::Mat >& imagePointsVector1, std::vector< cv::Mat >& imagePointsVector2 )
+{
+    cv::Mat
+        t1 = cv::Mat::zeros(cv::Size(3,1),cv::DataType<float>::type), 
+        r1 = cv::Mat::zeros(cv::Size(3,1),cv::DataType<float>::type);
+    
+    cv::Vec3d 
+        t2, r2;
+    
+    decomposeTransformation(*g_12_, r2, t2);
+    
+    cv::Ptr<cv::Mat>
+        imagePoints1,
+        imagePoints2;
+        
+    imagePointsVector1.clear();
+    imagePointsVector2.clear();
+    
+    for (std::size_t actualNeighborIndex = 0; actualNeighborIndex < pointsGroupVector.size(); actualNeighborIndex++)
+    {    
+        imagePoints1 = new cv::Mat(cv::Size(1,1), CV_64FC2, cv::Scalar(0,0));
+        imagePoints2 = new cv::Mat(cv::Size(1,1), CV_64FC2, cv::Scalar(0,0));
+        
+        cv::projectPoints(pointsGroupVector.at(actualNeighborIndex), r1, t1, *camera_matrix_, *distortion_coefficients_, *imagePoints1);
+        cv::projectPoints(pointsGroupVector.at(actualNeighborIndex), r2, t2, *camera_matrix_, *distortion_coefficients_, *imagePoints2);
+        
+        imagePointsVector1.push_back(*imagePoints1);
+        imagePointsVector2.push_back(*imagePoints2);
+    }
+}
+
+void SingleCameraTriangulator::projectPointsToImages(const cv::Mat& pointsGroup, cv::Mat& imagePoints1, cv::Mat& imagePoints2)
+{
+    cv::Mat
+        t1 = cv::Mat::zeros(cv::Size(3,1),cv::DataType<float>::type), 
+        r1 = cv::Mat::zeros(cv::Size(3,1),cv::DataType<float>::type);
+    
+    cv::Vec3d 
+        t2, r2;
+    
+    decomposeTransformation(*g_12_, r2, t2);
+    
+    cv::projectPoints(pointsGroup, r1, t1, *camera_matrix_, *distortion_coefficients_, imagePoints1);
+    cv::projectPoints(pointsGroup, r2, t2, *camera_matrix_, *distortion_coefficients_, imagePoints2);
+}
+
+
+void SingleCameraTriangulator::projectPointsAndComputeResidual(const std::vector< cv::Mat >& pointsGroupVector, std::vector< cv::Mat >& imagePointsVector1, std::vector< cv::Mat >& imagePointsVector2, std::vector< std::vector< double > >& residualsVectors)
+{
+    imagePointsVector1.clear();
+    imagePointsVector2.clear();
+    
+    projectPointsToImages(pointsGroupVector, imagePointsVector1, imagePointsVector2);
+    
+    // both points vectors should be of the same size TODO: check
+    int
+        numberOfGroups = imagePointsVector1.size();
+            
+    for (std::size_t i = 0; i < numberOfGroups; i++)
+    {
+//         std::cout << points.at(i) << std::endl;
+//         std::cout << points.at(i).rows << " - " << points.at(i).cols << std::endl;
+        int
+            numberOfPoints = pointsGroupVector.at(i).cols;
+        
+        std::vector<double>
+            groupResidual;
+            
+        for (std::size_t k = 0; k < numberOfPoints; k++)
+        {
+            cv::Point2d
+                point1(imagePointsVector1.at(i).at<cv::Vec2d>(k)),
+                point2(imagePointsVector2.at(i).at<cv::Vec2d>(k));
+            
+            double
+                pixel1 = getBilinearInterpPix32f(*img_1_, point1.x, point1.y),
+                pixel2 = getBilinearInterpPix32f(*img_2_, point2.x, point2.y);
+                
+            groupResidual.push_back((pixel1 - pixel2));
+            
+//             std::cout << point << " - " << pixel << " - " << colors.at(i)[0] << " " << colors.at(i)[1] << " " << colors.at(i)[2] << std::endl;
+        }
+        residualsVectors.push_back(groupResidual);
+    }
+}
+
+void SingleCameraTriangulator::projectPointsAndComputeResidual(const cv::Mat& pointsGroup, cv::Mat& imagePoints1, cv::Mat& imagePoints2, std::vector< double >& residualsVector)
+{
+    projectPointsToImages(pointsGroup, imagePoints1, imagePoints2);
+    
+    int
+        numberOfPoints = pointsGroup.cols;
+        
+    for (std::size_t k = 0; k < numberOfPoints; k++)
+    {
+        cv::Point2d
+        point1(imagePoints1.at<cv::Vec2d>(k)),
+        point2(imagePoints2.at<cv::Vec2d>(k));
+        
+        uchar
+        pixel1 = img_1_->at<uchar>(round(point1.y),round(point1.x)),
+        pixel2 = img_2_->at<uchar>(round(point2.y),round(point2.x));
+        
+        residualsVector.push_back((pixel1 - pixel2));
+        
+        //             std::cout << point << " - " << pixel << " - " << colors.at(i)[0] << " " << colors.at(i)[1] << " " << colors.at(i)[2] << std::endl;
+    }
+}
+
+void SingleCameraTriangulator::extractPixelsContour(const cv::Point2d &point, std::vector< Pixel >& pixels)
+{
+    int ray = 15; ///TODO: move to the file settings
+    
+    // TODO: prepare a lookuptable or something faster than this
+    // Check all the pixel in the square centered at the interest point
+    for(int i = -ray; i <= ray; i++)
+    {
+        for(int j = -ray; j <= ray; j++)
+        {
+            // If the pixel is inside the circle of ray: ray, take it
+            if (sqrt(i^2 + j^2) <= 15)
+            {
+                Pixel p;
+                p.x_ = point.x + i;
+                p.y_ = point.y + j;
+                p.i_ = img_1_->at<uchar>(point);
+                
+                pixels.push_back(p);
+            }
+        }
+    }
+}
+
+void SingleCameraTriangulator::projectPointToPlane(const cv::Vec3d& idealPoint, const cv::Vec3d &featurePoint, const cv::Vec3d& normal, cv::Vec3d &pointOnThePlane)
+{    
+    // The idealPoint is in the ideal camera coordinate with z=1
+    // I have to find the intersection between the line generated by the point (treatened as a vector)
+    // and the plane defined by the normal and the 3d feature point
+    
+    /**
+     * v is the idealPoint treatened as a vector
+     * p is the pointOnThePlane
+     * n is the normal
+     * p0 is the featurePoint
+     * 
+     * The system to solve is:
+     * 
+     * n(p-p0)=0 -> the plane equation
+     * kv=0 -> the line equation
+     * 
+     * That give these equation to be solved:
+     * 
+     * k * v_x = p_x
+     * k * v_y = p_y
+     * k * v_z = p_z
+     * 
+     * k = m/n
+     * 
+     * m = n_x * p0_x + n_y * p0_y + n_z * p0_z
+     * n = n_x * v_x + n_y * v_y + n_z * v_z
+     */
+    
+    double m = ( normal[0]*featurePoint[0] + 
+                 normal[1]*featurePoint[1] +
+                 normal[2]*featurePoint[2] );
+    
+    double n = ( normal[0]*idealPoint[0] + 
+                 normal[1]*idealPoint[1] +
+                 normal[2]*idealPoint[2] ); 
+    
+    double k = m/n;
+    
+    pointOnThePlane[0] = k * idealPoint[0];
+    pointOnThePlane[1] = k * idealPoint[1];
+    pointOnThePlane[2] = k * idealPoint[2];
+}
+
+void SingleCameraTriangulator::extractPixelsContourAndGet3DPoints(const cv::Vec3d& point, const cv::Vec3d& normal, std::vector< Pixel >& pixels, std::vector< cv::Vec3d >& pointsGroup)
+{
+    // Go back to the pixel in image1
+    cv::Mat
+        pixelMat, undistortedPixelMat,
+        pointMat = cv::Mat::zeros(cv::Size(3,1), CV_64FC1);
+        
+    // projectPoints needs a Mat :(
+    pointMat.at<double>(0) = point[0];
+    pointMat.at<double>(1) = point[1];
+    pointMat.at<double>(2) = point[2];
+    
+    cv::projectPoints(pointMat,  cv::Mat::zeros(cv::Size(3,1),cv::DataType<float>::type), 
+                      cv::Mat::zeros(cv::Size(3,1),cv::DataType<float>::type), *camera_matrix_, 
+                      *distortion_coefficients_, pixelMat);
+    
+    cv::Vec2d 
+        pixel = pixelMat.at<cv::Vec2d>(0);
+    
+    pixels.clear();
+    extractPixelsContour(pixel, pixels);
+    
+    // Recycle PixelMat
+    pixelMat = cv::Mat::zeros(cv::Size(1, pixels.size()), CV_64FC2);
+    for (std::size_t i = 0; i < pixels.size(); i++)
+    {
+        pixelMat.at<cv::Vec2d>(i) = cv::Vec2d(pixels.at(i).x_, pixels.at(i).y_);
+    }
+    
+    cv::undistortPoints(pixelMat, undistortedPixelMat, *camera_matrix_, *distortion_coefficients_);
+    
+    // For each pixel get a 3D point and store in the vector
+    for (std::size_t i = 0; i < pixels.size(); i++)
+    {
+        cv::Vec2d 
+            undistortedPixel = undistortedPixelMat.at<cv::Vec2d>(i);
+        // The ideal point is in the ideal camera with z = 1
+        cv::Vec3d
+            idealPoint(undistortedPixel[0], undistortedPixel[1], 1),
+            newPoint;
+            
+        projectPointToPlane(idealPoint, point, normal, newPoint);
+        
+        pointsGroup.push_back(newPoint);
+    }
+}
+
+void SingleCameraTriangulator::projectPointsToImage2(const std::vector< cv::Vec3d >& pointsGroup, std::vector< Pixel >& pixels)
+{
+    cv::Vec3d 
+        t2, r2;
+    
+    decomposeTransformation(*g_12_, r2, t2);
+    
+    cv::Mat imagePoints2;
+    
+    cv::projectPoints(pointsGroup, r2, t2, *camera_matrix_, *distortion_coefficients_, imagePoints2);
+    
+//     std::cout << imagePoints2 << std::endl;
+    
+    for (std::size_t i = 0; i < imagePoints2.rows; i++)
+    {
+        cv::Vec2d pixel = imagePoints2.at<cv::Vec2d>(i);
+        Pixel p;
+        p.x_ = pixel[0];
+        p.y_ = pixel[1];
+        p.i_ = getBilinearInterpPix32f(*img_1_, p.x_, p.y_);
+        
+        pixels.push_back(p);
+    }
+}
+

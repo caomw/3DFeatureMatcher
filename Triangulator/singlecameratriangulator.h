@@ -39,23 +39,54 @@
 
 #include "../tools.h"
 
+typedef struct
+{
+    double x_; //> x coordinate of the pixel
+    double y_; //> y coordinate of the pixel
+    uchar i_;  //> intensity of the pixel
+} Pixel;
+
 class SingleCameraTriangulator
 {
 public:
     SingleCameraTriangulator( cv::FileStorage &settings );
 
+    void setImages(const cv::Mat &img1, const cv::Mat &img2);
+    
     void setg12(const cv::Vec3d& T1, const cv::Vec3d& T2, const cv::Vec3d& rodrigues1, const cv::Vec3d& rodrigues2, cv::Matx44d &g12);
     
     void setKeypoints( const std::vector<cv::KeyPoint> &kpts1, const std::vector<cv::KeyPoint> &kpts2, const std::vector<cv::DMatch> &matches);
     
     void triangulate( cv::Mat &triangulatedPoints, std::vector<bool> &outliersMask );
-
+    
+    void projectPointsAndComputeResidual( const std::vector< cv::Mat >& pointsGroupVector, std::vector< cv::Mat >& imagePointsVector1, std::vector< cv::Mat >& imagePointsVector2, std::vector< std::vector<double> > &residualsVectors );
+    
+    void projectPointsAndComputeResidual( const cv::Mat& pointsGroup, cv::Mat& imagePoints1, cv::Mat& imagePoints2, std::vector<double> &residualsVector );
+    
+    /** Extract a contour of pixels in the image1 and project them in the 3D plane according to the normal
+     */
+    void extractPixelsContourAndGet3DPoints( const cv::Vec3d &point, const cv::Vec3d &normal, std::vector<Pixel> &pixels, std::vector<cv::Vec3d>& pointsGroup);
+    
+    void projectPointsToImage2( const std::vector<cv::Vec3d> &pointsGroup, std::vector<Pixel> &pixels );
+    
 // Private methods
 private:
     SingleCameraTriangulator(); // Avoid the default constructor
-
+    
+    void projectPointsToImages( const std::vector< cv::Mat >& pointsGroupVector, std::vector< cv::Mat >& imagePointsVector1, std::vector< cv::Mat >& imagePointsVector2 );
+    
+    void projectPointsToImages( const cv::Mat& pointsGroup, cv::Mat& imagePoints1, cv::Mat& imagePoints2 );
+    
+    void extractPixelsContour( const cv::Point2d &point, std::vector<Pixel> &pixels );
+    
+    void projectPointToPlane( const cv::Vec3d& newPoint, const cv::Vec3d& featurePoint, const cv::Vec3d& normal, cv::Vec3d& pointOnThePlane );
+    
 // Private data
 private:
+    
+    cv::Ptr<cv::Mat>
+        img_1_,
+        img_2_;
     
     std::size_t
         N_;                         //> Number of points

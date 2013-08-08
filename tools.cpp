@@ -29,6 +29,49 @@
 
 #include "tools.h"
 
+void computeCameraMatixAndDistCoeff(const cv::FileStorage &settings, cv::Matx33d &cameraMatrix, cv::Mat &distCoeff)
+{
+    // 4 Compose the camera matrix
+    /*        
+     * Fx 0  Cx
+     * 0  Fx Cy
+     * 0  0  1 
+     */
+    double
+        Fx, Fy, Cx, Cy;
+    
+    settings["CameraSettings"]["Fx"] >> Fx;
+    settings["CameraSettings"]["Fy"] >> Fy;
+    settings["CameraSettings"]["Cx"] >> Cx;
+    settings["CameraSettings"]["Cy"] >> Cy;
+    
+    cameraMatrix.zeros();
+    
+    cameraMatrix(0,0) = Fx;
+    cameraMatrix(1,1) = Fy;
+    cameraMatrix(0,2) = Cx;
+    cameraMatrix(1,2) = Cy;
+    cameraMatrix(2,2) = 1;
+    
+    // 5 Compose the distortion coefficients array
+    double
+        p1, p2, k0, k1, k2 ;
+    
+    settings["CameraSettings"]["p1"] >> p1;
+    settings["CameraSettings"]["p2"] >> p2;
+    settings["CameraSettings"]["k0"] >> k0;
+    settings["CameraSettings"]["k1"] >> k1;
+    settings["CameraSettings"]["k2"] >> k2;
+    
+    distCoeff = cv::Mat(cv::Size(5,1), CV_64FC1, cv::Scalar(0));
+    
+    distCoeff.at<double>(0) = k0;
+    distCoeff.at<double>(1) = k1;
+    distCoeff.at<double>(2) = p1;
+    distCoeff.at<double>(3) = p2;
+    distCoeff.at<double>(4) = k2;
+}
+
 void composeTransformation(const cv::Matx33d &R, const cv::Vec3d &T, cv::Matx44d &G)
 {
     // Put R on top left
@@ -69,6 +112,21 @@ void getSkewMatrix (const cv::Vec3d &vec, cv::Matx33d &skew)
     skew(0,0) =  0;      skew(0,1) = -vec[2]; skew(0,2) =  vec(1); 
     skew(1,0) =  vec[2]; skew(1,1) =  0;      skew(1,2) = -vec[0]; 
     skew(2,0) = -vec[1]; skew(2,1) =  vec[0]; skew(2,2) =  0; 
+}
+
+float getBilinearInterpPix32f ( cv::Mat &cv_img, float x, float y )
+{
+    int x0 = floor ( double ( x ) ), y0 = floor ( double ( y ) );
+    int x1 = x0 + 1, y1 = y0 + 1;
+    
+    float bilienar_mat[] = { float ( cv_img.at<uchar> ( y0, x0 ) ), float ( cv_img.at<uchar> ( y1, x0 ) ),
+                             float ( cv_img.at<uchar> ( y0, x1 ) ), float ( cv_img.at<uchar> ( y1, x1 ) )
+                           };
+    float x_mat[] = { 1.0f- ( x- ( float ) x0 ) , ( x- ( float ) x0 ) };
+    float y_mat[] = { 1.0f- ( y- ( float ) y0 ) , ( y- ( float ) y0 ) };
+    
+    return x_mat[0]* ( bilienar_mat[0]*y_mat[0] + bilienar_mat[1]*y_mat[1] ) +
+           x_mat[1]* ( bilienar_mat[2]*y_mat[0] + bilienar_mat[3]*y_mat[1] );
 }
 
 /** Draw the matches and return the colors used
@@ -188,6 +246,50 @@ void viewPointCloud(const cv::Mat &triagulatedPoints, const std::vector< cv::Sca
     {
         viewer->spin();
     }
+}
+
+void viewPointCloudAndNormals(const cv::Mat& triagulatedPoints, pcl::PointCloud< pcl::Normal >::ConstPtr normals, const std::vector< cv::Scalar >& colors)
+{    
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr
+        cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
+    
+    for (int i = 0; i < triagulatedPoints.cols; i++)
+    {
+        // Outliers are already out
+        //         if ( outliersMask[i] ) // Do not print outliers
+        //         {
+        pcl::PointXYZRGB actual;
+        actual.x = triagulatedPoints.at<double>(0, i);
+        actual.y = triagulatedPoints.at<double>(1, i);
+        actual.z = triagulatedPoints.at<double>(2, i);
+        actual.r = colors.at(i)[2];
+        actual.g = colors.at(i)[1];
+        actual.b = colors.at(i)[0];
+        
+        cloud->points.push_back(actual);
+        //         }
+    }
+    cloud->width = (int) cloud->points.size ();
+    cloud->height = 1;
+    
+    ///////////////////////////// 
+    // Visualizzo la point cloud
+    boost::shared_ptr< pcl::visualization::PCLVisualizer >
+    viewer( new pcl::visualization::PCLVisualizer("Triangulated points viewer") );
+    
+    viewer->setBackgroundColor(0,0,0);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
+    viewer->addPointCloud<pcl::PointXYZRGB>(cloud, rgb, "Triangulated points");
+    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "Triangulated points");
+    viewer->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (cloud, normals, 1, 0.35, "normals");
+    viewer->addCoordinateSystem(1.0);
+    viewer->initCameraParameters();
+    
+    while (!viewer->wasStopped())
+    {
+        viewer->spin();
+    }
+    
 }
 
 void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< cv::Mat > &neighborhoodsVector, const std::vector< cv::Scalar > &colors)

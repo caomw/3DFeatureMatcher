@@ -22,9 +22,11 @@ add_definitions( ${PCL_DEFINITIONS} )
 
 find_package (Threads REQUIRED)
 
+link_directories(/usr/local/lib)
+
 add_executable(3dfeaturematcher Triangulator/neighborhoodsgenerator.cpp Triangulator/singlecameratriangulator.cpp DescriptorsMatcher/descriptorsmatcher.cpp tools.cpp main.cpp)
 
-target_link_libraries(3dfeaturematcher ${OpenCV_LIBS} ${PCL_LIBRARIES} )
+target_link_libraries(3dfeaturematcher ${OpenCV_LIBS} ${PCL_LIBRARIES} lmfit )
 
 install(TARGETS 3dfeaturematcher RUNTIME DESTINATION bin)
 add_subdirectory(DescriptorsMatcher)

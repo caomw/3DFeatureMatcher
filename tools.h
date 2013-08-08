@@ -40,7 +40,9 @@
 
 #include <boost/thread/thread.hpp>
 
-void computeRelativeRotation(const cv::Vec3d& r1, const cv::Vec3d& r2, cv::Vec3d& r21);
+/** Compute camera matrix and distortion coefficients with the parameters in a file settings
+ */
+void computeCameraMatixAndDistCoeff(const cv::FileStorage &settings, cv::Matx33d &cameraMatrix, cv::Mat &distCoeff);
 
 /** Compose a 4x4 transform matrix from R and T
  */
@@ -58,6 +60,10 @@ cv::Scalar random_color(cv::RNG &rng);
  */
 void getSkewMatrix (const cv::Vec3d &vec, cv::Matx33d &skew);
 
+/** Bilinear interpolation of the intensity of a pixel with non integer coordinates
+ */
+float getBilinearInterpPix32f ( cv::Mat &cv_img, float x, float y );
+
 /** Draw the matches and return the colors used
  */
 void drawMatches(const cv::Mat &img1, const cv::Mat &img2, cv::Mat &window, const std::vector<cv::KeyPoint> &kpts1, const std::vector<cv::KeyPoint> &kpts2, const std::vector<cv::DMatch> &matches, std::vector<cv::Scalar> &colors, const std::vector<bool> outliersMask);
@@ -67,6 +73,10 @@ void drawBackProjectedPoints(const cv::Mat &input, cv::Mat &output, const std::v
 /** Draw a point cloud
  */
 void viewPointCloud(const cv::Mat &triagulatedPoints, const std::vector< cv::Scalar > &colors);
+
+/** Draw a point cloud and given normals
+ */
+void viewPointCloudAndNormals(const cv::Mat &triagulatedPoints, pcl::PointCloud<pcl::Normal>::ConstPtr normals,const std::vector< cv::Scalar > &colors);
 
 void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< cv::Mat > &neighborhoodsVector, const std::vector< cv::Scalar > &colors);
 #endif // TOOLS_H_

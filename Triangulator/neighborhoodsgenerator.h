@@ -85,6 +85,8 @@ public:
      */
     void computeNeighborhoodsByNormals( const cv::Mat &points, cv::Mat &normals, std::vector<cv::Mat> &neighborhoodsVector );
     
+    void computeNeighborhoodByNormal( const cv::Vec3d& point, cv::Vec3d& normal, cv::Mat& neighborhood );
+    
 private:
     NeighborhoodsGenerator();       //> No default constructor
 

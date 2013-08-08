@@ -131,3 +131,46 @@ void NeighborhoodsGenerator::computeNeighborhoodsByNormals(const cv::Mat& points
     }
     
 }
+
+void NeighborhoodsGenerator::computeNeighborhoodByNormal(const cv::Vec3d& point, cv::Vec3d& normal, cv::Mat& neighborhood)
+{
+    unsigned int
+        numberOfSamples = number_of_angles_ * number_of_rays_;
+    
+    // If no normal, use the initial guess to compute it
+    if (normal[0] == 0 && normal[1] == 0 && normal[2] == 0)
+    {
+        normal = point / cv::norm(point);        
+    }
+    
+    // Compute a perpendicular vector
+    cv::Vec3d
+        spanner(0,1,-normal[1]/normal[2]); // in this way <spanner, normal> = 0
+        
+//         std::cout << "<" << normal << ", " << spanner << "> = " << normal.dot(spanner) << std::endl;
+        
+    // Rescale to epsilon_ size 
+    spanner = spanner / cv::norm(spanner) * epsilon_;
+        
+    neighborhood = cv::Mat::zeros(cv::Size(numberOfSamples, 1), CV_64FC3);
+        
+    for (std::size_t actualSample = 0; actualSample < numberOfSamples; actualSample++)
+    {
+        cv::Matx33d
+            W;
+        
+        getSkewMatrix(normal, W);
+        
+        cv::Vec3d
+            spannedPoint;
+        
+        // Compute this formula with precomputed values
+        //spannedPoint = point + r * epsilon *(spanner + W*spanner*sin(theta) + (2 * (sin(theta/2)) * (sin(theta/2))) * W * W * spanner);
+        precomputedValue
+            pv = lookUpTable_.at(actualSample);
+        
+        spannedPoint = point + pv.r_.r_ *(spanner + W * spanner * pv.st_.st_ + pv.st2_.st2_ * W * W * spanner);
+        
+        neighborhood.at<cv::Vec3d>(actualSample) = spannedPoint;
+    }
+}
