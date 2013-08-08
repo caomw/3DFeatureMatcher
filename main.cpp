@@ -17,7 +17,8 @@
 #include "Triangulator/neighborhoodsgenerator.h"
 #include "tools.h"
 
-#define METODO_B_
+#define METODO_A_  // pixel dall'immagine
+// #define METODO_B_  // punti 3D dal piano (deprecato, non supporta la versione piramidale ancora)
 
 #define IMG_1 "/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000750.pgm"
 #define IMG_2 "/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000770.pgm"
@@ -26,11 +27,12 @@
 // IMG_2 pose: TIME : 25694439 POS : 5.034858 3.667427 0.833424 0.014587 -0.248119 0.523502
 
 typedef struct {
-
     SingleCameraTriangulator *sct;
     NeighborhoodsGenerator *ng;
     cv::Vec3d *point;
-    
+    int m_dat;
+    double scale;
+    std::vector<Pixel> *imagePoints1;
 } dataStruct;
 
 void evaluateNormal( const double *par, int m_dat,
@@ -46,14 +48,16 @@ void evaluateNormal( const double *par, int m_dat,
     std::vector<cv::Vec3d>
         pointGroup;
     std::vector<Pixel>
-        imagePoints1, imagePoints2;
+        imagePoints2;
         
-    D->sct->extractPixelsContourAndGet3DPoints(*(D->point), normal, imagePoints1, pointGroup);
-    D->sct->projectPointsToImage2(pointGroup, imagePoints2);
-
+//     D->sct->extractPixelsContourAndGet3DPoints(*(D->point), normal, imagePoints1, pointGroup);
+//     D->sct->projectPointsToImage2(pointGroup, imagePoints2);
+    D->sct->get3dPointsFromImage1Pixels(*(D->point), normal, *(D->imagePoints1), pointGroup);
+    D->sct->projectPointsToImage2(pointGroup, D->scale, imagePoints2);
+    
     for (std::size_t i = 0; i < m_dat; i++)
     {
-        fvec[i] = imagePoints1.at(i).i_ - imagePoints2.at(i).i_;
+        fvec[i] = D->imagePoints1->at(i).i_ - imagePoints2.at(i).i_;
     }
 #endif // METODO_A_
 
@@ -71,6 +75,58 @@ void evaluateNormal( const double *par, int m_dat,
         fvec[i] = residuals.at(i);
     }
 #endif // METODO_B_
+}
+
+cv::Vec3d optimize(const cv::Mat &img1, const cv::Mat &img2, double scale, cv::Vec3d &initialNormal, dataStruct &data)
+{
+    /* parameter vector */
+    int n_par = 3;  /* number of parameters in model function f */
+    
+    double par[3] = { initialNormal[0], initialNormal[1], initialNormal[2] };   
+    
+    /* auxiliary parameters */
+    lm_status_struct status;
+    lm_control_struct control = lm_control_double;
+    control.epsilon = 1.e-8;
+    lm_princon_struct princon = lm_princon_std;
+    princon.flags = 3;
+    
+    data.sct->setImages(img1,img2);
+    
+    lmmin( n_par, par, data.m_dat, (const void*) &data, evaluateNormal,
+           lm_printout_std, &control, &princon, &status );
+    
+    initialNormal[0] = par[0];
+    initialNormal[1] = par[1];
+    initialNormal[2] = par[2];
+    
+    return initialNormal;
+}
+
+cv::Vec3d optimizePyramid(const cv::Mat &img1, const cv::Mat &img2, int pyr_levels, cv::Vec3d &initialNormal, dataStruct &data)
+{
+    cv::Mat 
+        img_pyr1[pyr_levels + 1],
+        img_pyr2[pyr_levels + 1];
+    img_pyr1[0] = img1;
+    img_pyr2[0] = img2;
+    
+    for( int i = 1; i <= pyr_levels; i++)
+    {
+        cv::pyrDown(img_pyr1[i-1], img_pyr1[i]);
+        cv::pyrDown(img_pyr2[i-1], img_pyr2[i]);
+    }
+    
+    float img_scale = float( pow(2.0,double(pyr_levels)) );
+    
+    for( int i = pyr_levels; i >= 0; i--)
+    {
+        data.scale = 1.0/img_scale;
+        initialNormal = optimize(img_pyr1[i], img_pyr2[i], img_scale, initialNormal, data);
+        img_scale /= 2.0f;
+    }
+    
+    return initialNormal;
 }
 
 /** Displays the usage message
@@ -183,12 +239,6 @@ int main(int argc, char **argv) {
     
     ////////////////////////////
     // Ottengo le guess delle normali dei piani e un set di punti che campionano gli intorni dei punti triangolati
-    
-//     // Lavoro su un solo punto per fare i test:
-//     cv::Mat
-//         triagulated_subvector = cv::Mat::zeros(cv::Size(1,3), CV_64FC1);
-//     triagulated_subvector.at<cv::Vec3d>(0) = triagulated.at<cv::Vec3d>(0);
-    
     NeighborhoodsGenerator
         ng(fs);
         
@@ -209,41 +259,44 @@ int main(int argc, char **argv) {
         
     sct.setImages(img1, img2);
     
+#ifdef METODO_A_
+    int m_dat = sct.getMdat();
+    int pyr_levels;
+    fs["Neighborhoods"]["pyramids"] >> pyr_levels;
+#endif // METODO_A_
+
+#ifdef METODO_B_
     int
         numberOfRays, numberOfThetas;
-        
+    
     fs["Neighborhoods"]["rays"] >> numberOfRays;
     fs["Neighborhoods"]["thetas"] >> numberOfThetas;
     
     int
         m_dat = numberOfRays * numberOfThetas;
-    
+#endif // METODO_B_
+        
     for (std::size_t actualPointIndex = 0; actualPointIndex < triagulated.cols; actualPointIndex++)
     {
-        /* parameter vector */
-        int n_par = 3;  /* number of parameters in model function f */
         
         /* data points */
         cv::Vec3d 
             point = triagulated.col(actualPointIndex),
             normal = (-1) * point / cv::norm(point); /* the initial guess */
+        
+        std::vector<Pixel>
+            imagePoints1;
             
-        double par[3] = { normal[0], normal[1], normal[2] };   
+        sct.extractPixelsContour(point, 1.0, imagePoints1);
+            
+        dataStruct data = { &sct, &ng, &point, m_dat, 1.0, &imagePoints1};
         
-        dataStruct data = { &sct, &ng, &point };
+        cv::Vec3d newNormal = optimizePyramid(img1, img2, pyr_levels, normal, data);
         
-        /* auxiliary parameters */
-        lm_status_struct status;
-        lm_control_struct control = lm_control_double;
-        control.epsilon = 1.e-8;
-        lm_princon_struct princon = lm_princon_std;
-        princon.flags = 3;
-        
-        lmmin( n_par, par, m_dat, (const void*) &data, evaluateNormal,
-               lm_printout_std, &control, &princon, &status );
+        std::cout << normal-newNormal << std::endl;
         
         pcl::Normal
-            n(par[0], par[1], par[2]);
+            n(newNormal[0], newNormal[1], newNormal[2]);
             
         normalsCloud->push_back(n);
         
@@ -295,7 +348,7 @@ int main(int argc, char **argv) {
 //     viewPointCloud(triagulated, colors);
     
 //     viewPointCloudNeighborhood(triagulated, neighborhoodsVector, colors);
-    viewPointCloudAndNormals(triagulated, normalsCloud, colors);
+//     viewPointCloudAndNormals(triagulated, normalsCloud, colors);
     
     return 0;
 }

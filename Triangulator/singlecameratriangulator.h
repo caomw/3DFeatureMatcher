@@ -67,17 +67,25 @@ public:
      */
     void extractPixelsContourAndGet3DPoints( const cv::Vec3d &point, const cv::Vec3d &normal, std::vector<Pixel> &pixels, std::vector<cv::Vec3d>& pointsGroup);
     
-    void projectPointsToImage2( const std::vector<cv::Vec3d> &pointsGroup, std::vector<Pixel> &pixels );
+    void extractPixelsContour( const cv::Vec3d& point, const double scale, std::vector< Pixel >& pixels );
     
+    void get3dPointsFromImage1Pixels(const cv::Vec3d& point, const cv::Vec3d &normal, const std::vector< Pixel >& pixels, std::vector< cv::Vec3d >& pointsGroup);
+    
+    inline void projectPointsToImage2( const std::vector<cv::Vec3d> &pointsGroup, std::vector<Pixel> &pixels ) {projectPointsToImage2(pointsGroup, 1.0, pixels);}
+    
+    void projectPointsToImage2( const std::vector<cv::Vec3d> &pointsGroup, const double scale, std::vector<Pixel> &pixels );
+    
+    int getMdat();
 // Private methods
 private:
     SingleCameraTriangulator(); // Avoid the default constructor
     
+    void extractPixelsContour( const cv::Vec2d &point, const double scale, std::vector<Pixel> &pixels );
+    inline void extractPixelsContour( const cv::Vec2d &point, std::vector<Pixel> &pixels ) {extractPixelsContour(point, 1.0, pixels);}
+    
     void projectPointsToImages( const std::vector< cv::Mat >& pointsGroupVector, std::vector< cv::Mat >& imagePointsVector1, std::vector< cv::Mat >& imagePointsVector2 );
     
     void projectPointsToImages( const cv::Mat& pointsGroup, cv::Mat& imagePoints1, cv::Mat& imagePoints2 );
-    
-    void extractPixelsContour( const cv::Point2d &point, std::vector<Pixel> &pixels );
     
     void projectPointToPlane( const cv::Vec3d& newPoint, const cv::Vec3d& featurePoint, const cv::Vec3d& normal, cv::Vec3d& pointOnThePlane );
     

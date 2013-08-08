@@ -216,7 +216,7 @@ void drawBackProjectedPoints(const cv::Mat& input, cv::Mat& output, const cv::Ma
         cv::Point2i
             pixel(round(point.x),round(point.y));
         
-        //             std::cout << point << " - " << pixel << " - " << colors.at(i)[0] << " " << colors.at(i)[1] << " " << colors.at(i)[2] << std::endl;
+//      std::cout << point << " - " << pixel << " - " << colors.at(i)[0] << " " << colors.at(i)[1] << " " << colors.at(i)[2] << std::endl;
         
         output.at<cv::Vec3b>(pixel) = cv::Vec3b(colors[0], colors[1], colors[2]);
     }

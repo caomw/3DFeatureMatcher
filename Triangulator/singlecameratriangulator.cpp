@@ -328,7 +328,7 @@ void SingleCameraTriangulator::projectPointsAndComputeResidual(const cv::Mat& po
     }
 }
 
-void SingleCameraTriangulator::extractPixelsContour(const cv::Point2d &point, std::vector< Pixel >& pixels)
+void SingleCameraTriangulator::extractPixelsContour(const cv::Vec2d &point, const double scale, std::vector< Pixel >& pixels)
 {
     // TODO: prepare a lookuptable or something faster than this
     // Check all the pixel in the square centered at the interest point
@@ -340,15 +340,60 @@ void SingleCameraTriangulator::extractPixelsContour(const cv::Point2d &point, st
             if (i*i + j*j <= pixels_ray_*pixels_ray_)
             {
                 Pixel p;
-                p.x_ = point.x + i;
-                p.y_ = point.y + j;
-                p.i_ = img_1_->at<uchar>(point);
+                p.x_ = point[0] + i;
+                p.y_ = point[1] + j;
+                p.i_ = getBilinearInterpPix32f(*img_1_, scale * p.x_, scale * p.y_);//img_1_->at<uchar>(point);
                 
                 pixels.push_back(p);
             }
         }
     }
 }
+
+void SingleCameraTriangulator::extractPixelsContour(const cv::Vec3d& point, const double scale, std::vector< Pixel >& pixels)
+{
+    // Go back to the pixel in image1
+    cv::Mat
+        pixelMat, undistortedPixelMat,
+        pointMat = cv::Mat::zeros(cv::Size(3,1), CV_64FC1);
+    
+    // projectPoints needs a Mat :(
+    pointMat.at<double>(0) = point[0];
+    pointMat.at<double>(1) = point[1];
+    pointMat.at<double>(2) = point[2];
+    
+    cv::projectPoints(pointMat,  cv::Mat::zeros(cv::Size(3,1),cv::DataType<float>::type), 
+                      cv::Mat::zeros(cv::Size(3,1),cv::DataType<float>::type), *camera_matrix_, 
+                      *distortion_coefficients_, pixelMat);
+    
+    cv::Vec2d 
+        pixel = pixelMat.at<cv::Vec2d>(0);
+    
+    pixels.clear();
+    extractPixelsContour(pixel, scale, pixels);
+}
+
+int SingleCameraTriangulator::getMdat()
+{
+    int returnValue = 0;
+    
+    // TODO: prepare a lookuptable or something faster than this
+    // Check all the pixel in the square centered at the interest point
+    for(int i = -pixels_ray_; i <= pixels_ray_; i++)
+    {
+        for(int j = -pixels_ray_; j <= pixels_ray_; j++)
+        {
+            // If the pixel is inside the circle of ray: ray, take it
+            if (i*i + j*j <= pixels_ray_*pixels_ray_)
+            {
+                returnValue++;
+            }
+        }
+    }
+    
+    return returnValue;
+}
+
 
 void SingleCameraTriangulator::projectPointToPlane(const cv::Vec3d& idealPoint, const cv::Vec3d &featurePoint, const cv::Vec3d& normal, cv::Vec3d &pointOnThePlane)
 {    
@@ -452,7 +497,48 @@ void SingleCameraTriangulator::extractPixelsContourAndGet3DPoints(const cv::Vec3
 //     viewPointCloud(pointsGroup);
 }
 
-void SingleCameraTriangulator::projectPointsToImage2(const std::vector< cv::Vec3d >& pointsGroup, std::vector< Pixel >& pixels)
+void SingleCameraTriangulator::get3dPointsFromImage1Pixels(const cv::Vec3d& point, const cv::Vec3d& normal, const std::vector< Pixel >& pixels, std::vector< cv::Vec3d >& pointsGroup)
+{
+    // Go back to the pixel in image1
+    cv::Mat
+        pixelMat, undistortedPixelMat;
+    
+    pixelMat = cv::Mat::zeros(cv::Size(1, pixels.size()), CV_64FC2);
+    for (std::size_t i = 0; i < pixels.size(); i++)
+    {
+        pixelMat.at<cv::Vec2d>(i) = cv::Vec2d(pixels.at(i).x_, pixels.at(i).y_);
+    }
+    
+    cv::undistortPoints(pixelMat, undistortedPixelMat, *camera_matrix_, *distortion_coefficients_);
+    
+    //     std::cout << undistortedPixelMat << std::endl;
+    
+    // For each pixel get a 3D point and store in the vector
+    for (std::size_t i = 0; i < pixels.size(); i++)
+    {
+        cv::Vec2d 
+            undistortedPixel = undistortedPixelMat.at<cv::Vec2d>(i);
+        // The ideal point is in the ideal camera with z = 1
+        cv::Vec3d
+            idealPoint(undistortedPixel[0], undistortedPixel[1], 1),
+            newPoint;
+        
+        projectPointToPlane(idealPoint, point, normal, newPoint);
+        
+        pointsGroup.push_back(newPoint);
+    }
+    
+//     cv::Mat
+//         test1, img1_BGR = cv::imread("test1.pgm", CV_LOAD_IMAGE_COLOR);
+//     
+//     drawBackProjectedPoints(img1_BGR, test1, pixelMat, cv::Scalar(255,0,0));
+//     
+//     cv::imwrite("test1.pgm", test1);
+    
+    //     viewPointCloud(pointsGroup);
+}
+
+void SingleCameraTriangulator::projectPointsToImage2(const std::vector< cv::Vec3d >& pointsGroup, const double scale, std::vector< Pixel >& pixels)
 {
     cv::Vec3d 
         t2, r2;
@@ -471,17 +557,17 @@ void SingleCameraTriangulator::projectPointsToImage2(const std::vector< cv::Vec3
         Pixel p;
         p.x_ = pixel[0];
         p.y_ = pixel[1];
-        p.i_ = getBilinearInterpPix32f(*img_1_, p.x_, p.y_);
+        p.i_ = getBilinearInterpPix32f(*img_2_, scale * p.x_, scale * p.y_);
         
         pixels.push_back(p);
     }
     
-    cv::Mat
-        test2, img2_BGR = cv::imread("test2.pgm", CV_LOAD_IMAGE_COLOR);
-    
-    drawBackProjectedPoints(img2_BGR, test2, imagePoints2, cv::Scalar(255,0,0));
-    
-    cv::imwrite("test2.pgm", test2);
+//     cv::Mat
+//         test2, img2_BGR = cv::imread("test2.pgm", CV_LOAD_IMAGE_COLOR);
+//     
+//     drawBackProjectedPoints(img2_BGR, test2, imagePoints2, cv::Scalar(255,0,0));
+//     
+//     cv::imwrite("test2.pgm", test2);
     
 //     cv::namedWindow("test2");
 //     cv::imshow("test2", img2_BGR);
