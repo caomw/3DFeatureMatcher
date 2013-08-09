@@ -26,6 +26,7 @@
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include <math.h>
 
 #include "singlecameratriangulator.h"
 
@@ -434,9 +435,15 @@ void SingleCameraTriangulator::projectPointToPlane(const cv::Vec3d& idealPoint, 
     
     double k = m/n;
     
+    
     pointOnThePlane[0] = k * idealPoint[0];
     pointOnThePlane[1] = k * idealPoint[1];
     pointOnThePlane[2] = k * idealPoint[2];
+    
+    if (isnan(pointOnThePlane[0]) || isnan(pointOnThePlane[1]) || isnan(pointOnThePlane[2])) 
+    {
+        std::cout << "male" << std::endl;
+    }
 }
 
 void SingleCameraTriangulator::extractPixelsContourAndGet3DPoints(const cv::Vec3d& point, const cv::Vec3d& normal, std::vector< Pixel >& pixels, std::vector< cv::Vec3d >& pointsGroup)
@@ -535,7 +542,14 @@ void SingleCameraTriangulator::get3dPointsFromImage1Pixels(const cv::Vec3d& poin
 //     
 //     cv::imwrite("test1.pgm", test1);
     
-    //     viewPointCloud(pointsGroup);
+}
+
+void SingleCameraTriangulator::updateImage1PixelsIntensity(const double scale, std::vector< Pixel >& pixels)
+{
+    for (std::vector<Pixel>::iterator it = pixels.begin(); it != pixels.end(); it++)
+    {
+        it->i_ = getBilinearInterpPix32f(*img_1_, scale * it->x_, scale * it->y_);
+    }
 }
 
 void SingleCameraTriangulator::projectPointsToImage2(const std::vector< cv::Vec3d >& pointsGroup, const double scale, std::vector< Pixel >& pixels)

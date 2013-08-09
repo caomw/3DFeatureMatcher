@@ -76,6 +76,8 @@ void drawBackProjectedPoints(const cv::Mat &input, cv::Mat &output, const cv::Ma
 void viewPointCloud(const cv::Mat &triagulatedPoints, const std::vector< cv::Scalar > &colors);
 void viewPointCloud(const std::vector< cv::Vec3d >& pointsGroup);
 
+void viewPointCloud(const std::vector< cv::Vec3d >& pointsGroup, const cv::Vec3d &normal);
+
 /** Draw a point cloud and given normals
  */
 void viewPointCloudAndNormals(const cv::Mat &triagulatedPoints, pcl::PointCloud<pcl::Normal>::ConstPtr normals,const std::vector< cv::Scalar > &colors);

@@ -3,11 +3,12 @@ NNDR:
    epsilon: 0.4
 
 Neighborhoods:
-   epsilon: 0.1
    #Method A: take pixels in the image
-   pixelsRay: 6
+   epsilonLMMIN: 1e-8
+   pixelsRay: 32
    pyramids: 4
    #Method B: take points on the plane
+   epsilon: 0.1
    thetas: 15
    rays: 5
 

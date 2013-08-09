@@ -26,7 +26,7 @@
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+#include <ctime>
 #include "tools.h"
 
 void computeCameraMatixAndDistCoeff(const cv::FileStorage &settings, cv::Matx33d &cameraMatrix, cv::Mat &distCoeff)
@@ -305,6 +305,68 @@ void viewPointCloud(const std::vector< cv::Vec3d >& pointsGroup)
     }
 }
 
+void viewPointCloud(const std::vector< cv::Vec3d >& pointsGroup, const cv::Vec3d &normal)
+{
+    pcl::PointCloud<pcl::Normal>::Ptr
+        normals(new pcl::PointCloud<pcl::Normal>);
+        
+    for (std::size_t t = 0; t < pointsGroup.size(); t++)
+    {
+        pcl::Normal
+            n(normal[0],normal[1],normal[2]);
+        normals->points.push_back(n);
+    }
+    
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr
+        cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
+    
+    for (int i = 0; i < pointsGroup.size(); i++)
+    {
+        pcl::PointXYZRGB actual;
+        actual.x = pointsGroup.at(i)[0];
+        actual.y = pointsGroup.at(i)[1];
+        actual.z = pointsGroup.at(i)[2];
+        actual.r = 190;
+        actual.g = 190;
+        actual.b = 255;
+        
+        cloud->points.push_back(actual);
+    }
+    cloud->width = (int) cloud->points.size ();
+    cloud->height = 1;
+    
+    ///////////////////////////// 
+    // Visualizzo la point cloud
+    boost::shared_ptr< pcl::visualization::PCLVisualizer >
+    viewer( new pcl::visualization::PCLVisualizer("Triangulated points viewer") );
+    
+    viewer->setBackgroundColor(0,0,0);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
+    viewer->addPointCloud<pcl::PointXYZRGB>(cloud, rgb, "Triangulated points");
+    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "Triangulated points");
+    viewer->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (cloud, normals, 150, 0.35, "normals");
+    viewer->addCoordinateSystem(1.0);
+    viewer->initCameraParameters();
+    viewer->setCameraPose(0,-8,-1,0,0,0,0,-1,-2);
+    
+    std::clock_t start;
+    double duration;
+    
+    start = std::clock();
+    
+    /* Your algorithm here */
+    
+    
+    while (!viewer->wasStopped())
+    {
+        duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+        viewer->spinOnce();
+        if (duration >= 1)
+        {
+            break;
+        }
+    }
+}
 
 void viewPointCloudAndNormals(const cv::Mat& triagulatedPoints, pcl::PointCloud< pcl::Normal >::ConstPtr normals, const std::vector< cv::Scalar >& colors)
 {    
@@ -342,6 +404,7 @@ void viewPointCloudAndNormals(const cv::Mat& triagulatedPoints, pcl::PointCloud<
     viewer->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (cloud, normals, 1, 0.35, "normals");
     viewer->addCoordinateSystem(1.0);
     viewer->initCameraParameters();
+    viewer->setCameraPose(0,-8,-1,0,0,0,0,-1,-2);
     
     while (!viewer->wasStopped())
     {
@@ -403,6 +466,7 @@ void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< c
     viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "Triangulated points");
     viewer->addCoordinateSystem(1.0);
     viewer->initCameraParameters();
+    viewer->setCameraPose(0,-8,-1,0,0,0,0,-1,-2);
     
     while (!viewer->wasStopped())
     {

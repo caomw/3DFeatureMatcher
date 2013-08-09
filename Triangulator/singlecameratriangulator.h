@@ -43,7 +43,7 @@ typedef struct
 {
     double x_; //> x coordinate of the pixel
     double y_; //> y coordinate of the pixel
-    uchar i_;  //> intensity of the pixel
+    float i_;  //> intensity of the pixel
 } Pixel;
 
 class SingleCameraTriangulator
@@ -74,6 +74,8 @@ public:
     inline void projectPointsToImage2( const std::vector<cv::Vec3d> &pointsGroup, std::vector<Pixel> &pixels ) {projectPointsToImage2(pointsGroup, 1.0, pixels);}
     
     void projectPointsToImage2( const std::vector<cv::Vec3d> &pointsGroup, const double scale, std::vector<Pixel> &pixels );
+    
+    void updateImage1PixelsIntensity(const double scale, std::vector<Pixel> &pixels );
     
     int getMdat();
 // Private methods
