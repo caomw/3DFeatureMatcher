@@ -45,4 +45,5 @@ CameraSettings:
    k2: -0.028357
 
    #Outliers threshold
-   zThreshold: 2.5
+   zThresholdMin: 1.5
+   zThresholdMax: 2.4

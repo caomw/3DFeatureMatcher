@@ -4,8 +4,8 @@ NNDR:
 
 Neighborhoods:
    #Method A: take pixels in the image
-   epsilonLMMIN: 0.1
-   pixelsRay: 32
+   epsilonLMMIN: 1e-8
+   pixelsRay: 16
    pyramids: 4
    #Method B: take points on the plane
    epsilon: 0.1
@@ -45,4 +45,5 @@ CameraSettings:
    k2: -0.028357
 
    #Outliers threshold
-   zThreshold: 2.5
+   zThresholdMin: 1.5
+   zThresholdMax: 2.4

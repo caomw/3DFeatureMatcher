@@ -24,7 +24,7 @@ find_package (Threads REQUIRED)
 
 link_directories(/usr/local/lib)
 
-add_executable(3dfeaturematcher Triangulator/neighborhoodsgenerator.cpp Triangulator/singlecameratriangulator.cpp DescriptorsMatcher/descriptorsmatcher.cpp tools.cpp main.cpp)
+add_executable(3dfeaturematcher pclvisualizerthread.cpp Triangulator/normaloptimizer.cpp Triangulator/neighborhoodsgenerator.cpp Triangulator/singlecameratriangulator.cpp DescriptorsMatcher/descriptorsmatcher.cpp tools.cpp main.cpp)
 
 target_link_libraries(3dfeaturematcher ${OpenCV_LIBS} ${PCL_LIBRARIES} lmfit )
 

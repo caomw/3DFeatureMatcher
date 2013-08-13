@@ -51,13 +51,13 @@ class SingleCameraTriangulator
 public:
     SingleCameraTriangulator( cv::FileStorage &settings );
 
-    void setImages(const cv::Mat &img1, const cv::Mat &img2);
+    void setImages(const cv::Mat& img1, const cv::Mat& img2);
     
     void setg12(const cv::Vec3d& T1, const cv::Vec3d& T2, const cv::Vec3d& rodrigues1, const cv::Vec3d& rodrigues2, cv::Matx44d &g12);
     
     void setKeypoints( const std::vector<cv::KeyPoint> &kpts1, const std::vector<cv::KeyPoint> &kpts2, const std::vector<cv::DMatch> &matches);
     
-    void triangulate( cv::Mat &triangulatedPoints, std::vector<bool> &outliersMask );
+    void triangulate( std::vector< cv::Vec3d >& triangulatedPoints, std::vector< bool >& outliersMask );
     
     void projectPointsAndComputeResidual( const std::vector< cv::Mat >& pointsGroupVector, std::vector< cv::Mat >& imagePointsVector1, std::vector< cv::Mat >& imagePointsVector2, std::vector< std::vector<double> > &residualsVectors );
     
@@ -67,23 +67,22 @@ public:
      */
     void extractPixelsContourAndGet3DPoints( const cv::Vec3d &point, const cv::Vec3d &normal, std::vector<Pixel> &pixels, std::vector<cv::Vec3d>& pointsGroup);
     
-    void extractPixelsContour( const cv::Vec3d& point, const double scale, std::vector< Pixel >& pixels );
+    void extractPixelsContour( const cv::Vec3d& point, std::vector< Pixel >& pixels );
     
     void get3dPointsFromImage1Pixels(const cv::Vec3d& point, const cv::Vec3d &normal, const std::vector< Pixel >& pixels, std::vector< cv::Vec3d >& pointsGroup);
     
     inline void projectPointsToImage2( const std::vector<cv::Vec3d> &pointsGroup, std::vector<Pixel> &pixels ) {projectPointsToImage2(pointsGroup, 1.0, pixels);}
     
-    void projectPointsToImage2( const std::vector<cv::Vec3d> &pointsGroup, const double scale, std::vector<Pixel> &pixels );
+    int projectPointsToImage2( const std::vector<cv::Vec3d> &pointsGroup, const double scale, std::vector<Pixel> &pixels );
     
-    void updateImage1PixelsIntensity(const double scale, std::vector<Pixel> &pixels );
+    int updateImage1PixelsIntensity(const double scale, std::vector<Pixel> &pixels );
     
-    int getMdat();
+//     int getMdat();
 // Private methods
 private:
     SingleCameraTriangulator(); // Avoid the default constructor
     
-    void extractPixelsContour( const cv::Vec2d &point, const double scale, std::vector<Pixel> &pixels );
-    inline void extractPixelsContour( const cv::Vec2d &point, std::vector<Pixel> &pixels ) {extractPixelsContour(point, 1.0, pixels);}
+    void extractPixelsContour( const cv::Vec2d &point, std::vector<Pixel> &pixels );
     
     void projectPointsToImages( const std::vector< cv::Mat >& pointsGroupVector, std::vector< cv::Mat >& imagePointsVector1, std::vector< cv::Mat >& imagePointsVector2 );
     
@@ -146,7 +145,8 @@ private:
         outliers_mask_; //> Mask to distinguish between inliers (1) and outliers (0) points. As example those with negative z are outliers.
         
     double
-        z_threshold_; //> Threshold to define too far outliers TODO: remove magic numbers
+        z_threshold_min_, //> Threshold to define too near outliers 
+        z_threshold_max_; //> Threshold to define too far outliers
         
     int
         pixels_ray_;

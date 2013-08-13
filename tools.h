@@ -80,7 +80,11 @@ void viewPointCloud(const std::vector< cv::Vec3d >& pointsGroup, const cv::Vec3d
 
 /** Draw a point cloud and given normals
  */
-void viewPointCloudAndNormals(const cv::Mat &triagulatedPoints, pcl::PointCloud<pcl::Normal>::ConstPtr normals,const std::vector< cv::Scalar > &colors);
+void viewPointCloudAndNormals(const std::vector< cv::Vec3d >& triagulatedPoints, pcl::PointCloud< pcl::Normal >::ConstPtr normals, const std::vector< cv::Scalar >& colors);
 
 void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< cv::Mat > &neighborhoodsVector, const std::vector< cv::Scalar > &colors);
+
+void car2sph(const cv::Vec3d &v, double &phi, double &theta);
+void sph2car(const double phi, const double theta, cv::Vec3d &v);
+
 #endif // TOOLS_H_

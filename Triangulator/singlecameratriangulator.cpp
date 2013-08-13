@@ -101,7 +101,8 @@ SingleCameraTriangulator::SingleCameraTriangulator(cv::FileStorage &settings)
     distortion_coefficients_->at<double>(4) = k2;
         
     // 6 Get the outliers threshold
-    settings["CameraSettings"]["zThreshold"] >> z_threshold_;
+    settings["CameraSettings"]["zThresholdMin"] >> z_threshold_min_;
+    settings["CameraSettings"]["zThresholdMax"] >> z_threshold_max_;
     
     
     settings["Neighborhoods"]["pixelsRay"] >> pixels_ray_;
@@ -165,7 +166,7 @@ void SingleCameraTriangulator::setKeypoints(const std::vector< cv::KeyPoint >& k
     cv::undistortPoints(*a_2_, *u_2_, *camera_matrix_, *distortion_coefficients_);
 }
 
-void SingleCameraTriangulator::triangulate(cv::Mat& triangulatedPoints, std::vector<bool> &outliersMask)
+void SingleCameraTriangulator::triangulate(std::vector<cv::Vec3d>& triangulatedPoints, std::vector<bool> &outliersMask)
 {
     // Prepare projection matricies
     projection_1_ = new cv::Matx34d();
@@ -180,6 +181,9 @@ void SingleCameraTriangulator::triangulate(cv::Mat& triangulatedPoints, std::vec
     
     cv::triangulatePoints(*projection_1_, *projection_2_, *u_1_, *u_2_, triagulatedHomogeneous);
     
+    triagulated_.clear();
+    triangulatedPoints.clear();
+    
     for (int actualPoint = 0; actualPoint < N_; actualPoint++)
     {
         double 
@@ -189,7 +193,7 @@ void SingleCameraTriangulator::triangulate(cv::Mat& triangulatedPoints, std::vec
             W = triagulatedHomogeneous.at<double>(3, actualPoint);
         
         // Drop negative z or too far points
-        if ( Z / W < 0 || Z / W >= z_threshold_ )
+        if ( Z / W < z_threshold_min_ || Z / W >= z_threshold_max_ )
         {
             outliersMask.push_back(false);
             outliers_mask_.push_back(false);
@@ -204,20 +208,21 @@ void SingleCameraTriangulator::triangulate(cv::Mat& triangulatedPoints, std::vec
                 point(X / W, Y / W, Z / W);
             
             triagulated_.push_back(point);
+            triangulatedPoints.push_back(point);
         }
     }
     
-    int
-        size = triagulated_.size();
+//     int
+//         size = triagulated_.size();
         
-    triangulatedPoints = cv::Mat::zeros(cv::Size(size, 3), CV_64FC1);
-    
-    for (std::size_t k = 0; k < size; k++)
-    {
-        triangulatedPoints.at<double>(0, k) = triagulated_[k][0];
-        triangulatedPoints.at<double>(1, k) = triagulated_[k][1];
-        triangulatedPoints.at<double>(2, k) = triagulated_[k][2];
-    }
+//     triangulatedPoints = cv::Mat::zeros(cv::Size(size, 3), CV_64FC1);
+//     
+//     for (std::size_t k = 0; k < size; k++)
+//     {
+//         triangulatedPoints.at<double>(0, k) = triagulated_[k][0];
+//         triangulatedPoints.at<double>(1, k) = triagulated_[k][1];
+//         triangulatedPoints.at<double>(2, k) = triagulated_[k][2];
+//     }
 }
 
 void SingleCameraTriangulator::projectPointsToImages( const std::vector< cv::Mat >& pointsGroupVector, std::vector< cv::Mat >& imagePointsVector1, std::vector< cv::Mat >& imagePointsVector2 )
@@ -329,7 +334,7 @@ void SingleCameraTriangulator::projectPointsAndComputeResidual(const cv::Mat& po
     }
 }
 
-void SingleCameraTriangulator::extractPixelsContour(const cv::Vec2d &point, const double scale, std::vector< Pixel >& pixels)
+void SingleCameraTriangulator::extractPixelsContour(const cv::Vec2d &point, std::vector< Pixel >& pixels)
 {
     // TODO: prepare a lookuptable or something faster than this
     // Check all the pixel in the square centered at the interest point
@@ -340,18 +345,25 @@ void SingleCameraTriangulator::extractPixelsContour(const cv::Vec2d &point, cons
             // If the pixel is inside the circle of ray: ray, take it
             if (i*i + j*j <= pixels_ray_*pixels_ray_)
             {
-                Pixel p;
-                p.x_ = point[0] + i;
-                p.y_ = point[1] + j;
-                p.i_ = getBilinearInterpPix32f(*img_1_, scale * p.x_, scale * p.y_);//img_1_->at<uchar>(point);
+                Pixel 
+                    p = {point[0] + i, point[1] + j, 0};
                 
-                pixels.push_back(p);
+                // TODO: remove magic numbers
+                if (p.x_ < 0 || p.y_ < 0 || p.x_ >= 1024 || p.y_ >= 768)
+                {
+                    // Bad pixel
+                    std::cout << "Bad image 1 pixel: [" << p.x_ << "," << p.y_ << "]" << std::endl;
+                }
+                else
+                {
+                    pixels.push_back(p);
+                }
             }
         }
     }
 }
 
-void SingleCameraTriangulator::extractPixelsContour(const cv::Vec3d& point, const double scale, std::vector< Pixel >& pixels)
+void SingleCameraTriangulator::extractPixelsContour(const cv::Vec3d& point, std::vector< Pixel >& pixels)
 {
     // Go back to the pixel in image1
     cv::Mat
@@ -371,29 +383,29 @@ void SingleCameraTriangulator::extractPixelsContour(const cv::Vec3d& point, cons
         pixel = pixelMat.at<cv::Vec2d>(0);
     
     pixels.clear();
-    extractPixelsContour(pixel, scale, pixels);
+    extractPixelsContour(pixel, pixels);
 }
 
-int SingleCameraTriangulator::getMdat()
-{
-    int returnValue = 0;
-    
-    // TODO: prepare a lookuptable or something faster than this
-    // Check all the pixel in the square centered at the interest point
-    for(int i = -pixels_ray_; i <= pixels_ray_; i++)
-    {
-        for(int j = -pixels_ray_; j <= pixels_ray_; j++)
-        {
-            // If the pixel is inside the circle of ray: ray, take it
-            if (i*i + j*j <= pixels_ray_*pixels_ray_)
-            {
-                returnValue++;
-            }
-        }
-    }
-    
-    return returnValue;
-}
+// int SingleCameraTriangulator::getMdat()
+// {
+//     int returnValue = 0;
+//     
+//     // TODO: prepare a lookuptable or something faster than this
+//     // Check all the pixel in the square centered at the interest point
+//     for(int i = -pixels_ray_; i <= pixels_ray_; i++)
+//     {
+//         for(int j = -pixels_ray_; j <= pixels_ray_; j++)
+//         {
+//             // If the pixel is inside the circle of ray: ray, take it
+//             if (i*i + j*j <= pixels_ray_*pixels_ray_)
+//             {
+//                 returnValue++;
+//             }
+//         }
+//     }
+//     
+//     return returnValue;
+// }
 
 
 void SingleCameraTriangulator::projectPointToPlane(const cv::Vec3d& idealPoint, const cv::Vec3d &featurePoint, const cv::Vec3d& normal, cv::Vec3d &pointOnThePlane)
@@ -443,6 +455,7 @@ void SingleCameraTriangulator::projectPointToPlane(const cv::Vec3d& idealPoint, 
     if (isnan(pointOnThePlane[0]) || isnan(pointOnThePlane[1]) || isnan(pointOnThePlane[2])) 
     {
         std::cout << "male" << std::endl;
+        exit(-6);
     }
 }
 
@@ -544,15 +557,23 @@ void SingleCameraTriangulator::get3dPointsFromImage1Pixels(const cv::Vec3d& poin
     
 }
 
-void SingleCameraTriangulator::updateImage1PixelsIntensity(const double scale, std::vector< Pixel >& pixels)
+int SingleCameraTriangulator::updateImage1PixelsIntensity(const double scale, std::vector< Pixel >& pixels)
 {
+    int count = 0;
     for (std::vector<Pixel>::iterator it = pixels.begin(); it != pixels.end(); it++)
     {
+        if ( (it->x_ < 0) || (it->x_ > ((1 / scale) * img_1_->cols)) || (it->y_ < 0) || (it->y_ > ((1/scale) * img_1_->rows)))
+        {
+            std::cout << "[" << it->x_ << "," << it->y_ << "] - [" << it->x_*scale << "," << it->y_*scale << "]" << std::endl;
+            return -1;
+        }
         it->i_ = getBilinearInterpPix32f(*img_1_, scale * it->x_, scale * it->y_);
     }
+    
+    return 0;
 }
 
-void SingleCameraTriangulator::projectPointsToImage2(const std::vector< cv::Vec3d >& pointsGroup, const double scale, std::vector< Pixel >& pixels)
+int SingleCameraTriangulator::projectPointsToImage2(const std::vector< cv::Vec3d >& pointsGroup, const double scale, std::vector< Pixel >& pixels)
 {
     cv::Vec3d 
         t2, r2;
@@ -560,21 +581,33 @@ void SingleCameraTriangulator::projectPointsToImage2(const std::vector< cv::Vec3
     decomposeTransformation(*g_12_, r2, t2);
     
     cv::Mat imagePoints2;
-    
-    cv::projectPoints(pointsGroup, r2, t2, *camera_matrix_, *distortion_coefficients_, imagePoints2);
-    
-//     std::cout << imagePoints2 << std::endl;
-    
-    for (std::size_t i = 0; i < imagePoints2.rows; i++)
+    for (std::vector<cv::Vec3d>::const_iterator it = pointsGroup.begin(); it != pointsGroup.end(); it++)
     {
-        cv::Vec2d pixel = imagePoints2.at<cv::Vec2d>(i);
-        Pixel p;
-        p.x_ = pixel[0];
-        p.y_ = pixel[1];
-        p.i_ = getBilinearInterpPix32f(*img_2_, scale * p.x_, scale * p.y_);
+        cv::projectPoints(std::vector<cv::Vec3d>(it, (it+1)), r2, t2, *camera_matrix_, *distortion_coefficients_, imagePoints2);
         
-        pixels.push_back(p);
+    //     std::cout << imagePoints2 << std::endl;
+        
+        cv::Vec2d pixel;
+        Pixel p;
+        cv::Vec3d point;
+        for (std::size_t i = 0; i < imagePoints2.rows; i++)
+        {
+            point = (*it);
+            pixel = imagePoints2.at<cv::Vec2d>(i);
+            p.x_ = pixel[0];
+            p.y_ = pixel[1];
+            if ( (p.x_ < 0) || (p.x_ > ((1 / scale) * img_1_->cols)) || (p.y_ < 0) || (p.y_ > ((1/scale) * img_1_->rows)))
+            {
+                std::cout << point << " - " << pixel << " - " << pixel*scale << std::endl;
+                return -1;
+            }
+            p.i_ = getBilinearInterpPix32f(*img_2_, scale * p.x_, scale * p.y_);
+            
+            pixels.push_back(p);
+        }
     }
+    
+    return 0;
     
 //     cv::Mat
 //         test2, img2_BGR = cv::imread("test2.pgm", CV_LOAD_IMAGE_COLOR);

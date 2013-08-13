@@ -368,23 +368,25 @@ void viewPointCloud(const std::vector< cv::Vec3d >& pointsGroup, const cv::Vec3d
     }
 }
 
-void viewPointCloudAndNormals(const cv::Mat& triagulatedPoints, pcl::PointCloud< pcl::Normal >::ConstPtr normals, const std::vector< cv::Scalar >& colors)
+void viewPointCloudAndNormals(const std::vector<cv::Vec3d>& triagulatedPoints, pcl::PointCloud< pcl::Normal >::ConstPtr normals, const std::vector< cv::Scalar >& colors)
 {    
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr
         cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
     
-    for (int i = 0; i < triagulatedPoints.cols; i++)
+    int count = 0;
+    for (std::vector<cv::Vec3d>::const_iterator it = triagulatedPoints.begin(); it != triagulatedPoints.end(); it++)
     {
         // Outliers are already out
         //         if ( outliersMask[i] ) // Do not print outliers
         //         {
         pcl::PointXYZRGB actual;
-        actual.x = triagulatedPoints.at<double>(0, i);
-        actual.y = triagulatedPoints.at<double>(1, i);
-        actual.z = triagulatedPoints.at<double>(2, i);
-        actual.r = colors.at(i)[2];
-        actual.g = colors.at(i)[1];
-        actual.b = colors.at(i)[0];
+        actual.x = (*it)[0];
+        actual.y = (*it)[1];
+        actual.z = (*it)[2];
+        actual.r = colors.at(count)[2];
+        actual.g = colors.at(count)[1];
+        actual.b = colors.at(count)[0];
+        count++;
         
         cloud->points.push_back(actual);
         //         }
@@ -472,4 +474,17 @@ void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< c
     {
         viewer->spin();
     }
+}
+
+
+void car2sph(const cv::Vec3d &v, double &phi, double &theta)
+{
+    theta = acos( v[2] );
+    phi   = atan2( v[1], v[0] );
+}
+void sph2car(const double phi, const double theta, cv::Vec3d &v)
+{
+    v[0] = sin( theta ) * cos( phi );
+    v[1] = sin( theta ) * sin( phi );
+    v[2] = cos( theta );
 }
