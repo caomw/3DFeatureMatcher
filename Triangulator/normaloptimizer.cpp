@@ -29,6 +29,9 @@
 
 #include "normaloptimizer.h"
 
+#define THETA_INDEX 1
+#define PHI_INDEX 0
+
 typedef struct {
     
     SingleCameraTriangulator 
@@ -43,6 +46,12 @@ typedef struct {
         *imagePoints1;
     pclVisualizerThread
         *pvt;
+    cv::Scalar
+        *color;
+        
+    double
+        thetaInitialGuess,
+        phiInitialGuess;
     
 } lmminDataStruct;
 
@@ -57,8 +66,8 @@ void evaluateNormal( const double *par, int m_dat,
         normal;
     
     double
-        theta = par[0],
-        phi = par[1];
+        phi = par[PHI_INDEX],
+        theta = par[THETA_INDEX];
     
     sph2car(phi, theta, normal);
     
@@ -100,12 +109,12 @@ void evaluateNormal( const double *par, int m_dat,
 //     if (1.0 == D->scale || 0.0625 == D->scale)
 //     {
 //         viewPointCloud(pointGroup, normal);
-        D->pvt->updateClouds(pointGroup, normal);
+//         D->pvt->updateClouds(pointGroup, normal, *(D->color));
 //     }
     
     for (std::size_t i = 0; i < m_dat; i++)
     {
-        fvec[i] = D->imagePoints1->at(i).i_ - imagePoints2.at(i).i_;
+        fvec[i] = (127 + abs(theta - D->thetaInitialGuess) + abs(phi - D->phiInitialGuess)) * (D->imagePoints1->at(i).i_ - imagePoints2.at(i).i_);
     }
 }
 
@@ -161,12 +170,14 @@ bool NormalOptimizer::optimize_pyramid()
     for( int i = pyr_levels_; i >= 0; i--)
     {
         actual_scale_ = 1.0/img_scale;
-        std::cout << "scala: " << actual_scale_ << std::endl;
+//         std::cout << "scala: " << actual_scale_ << " Actual normal: " << *actual_norm_;
         
         if (!optimize(i))
         {
             return false;
         }
+        
+//         std::cout << " Estimated normal: " << *actual_norm_ << std::endl;
         
         img_scale /= 2.0f;
     }
@@ -186,12 +197,14 @@ bool NormalOptimizer::optimize(const int pyrLevel)
     int 
         n_par = 2;  // number of parameters in evaluateNormal
     double 
-        par[2] = { phi, theta };   
+        par[2];
+    par[PHI_INDEX] = phi;
+    par[THETA_INDEX] = theta;
         
     sct_->setImages(pyr_img_1_[pyrLevel],pyr_img_2_[pyrLevel]);
     
     lmminDataStruct
-        data = { sct_, actual_point_, m_dat_, actual_scale_, &image_1_points_, visualizer_ };
+        data = { sct_, actual_point_, m_dat_, actual_scale_, &image_1_points_, visualizer_, color_, theta, phi };
         
     /* auxiliary parameters */
     lm_status_struct 
@@ -213,21 +226,32 @@ bool NormalOptimizer::optimize(const int pyrLevel)
         return false;
     }
     
-    sph2car(par[0], par[1], (*actual_norm_));
+    sph2car(par[PHI_INDEX], par[THETA_INDEX], (*actual_norm_));
     
     return true;
 }
 
-void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, std::vector< cv::Vec3d >& normalsVector)
+void NormalOptimizer::computeOptimizedNormals(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector)
+{
+    std::vector<cv::Scalar> colors;
+    for (std::vector<cv::Vec3d>::iterator actualPointIT = points3D.begin(); actualPointIT != points3D.end(); actualPointIT++)
+    {
+        colors.push_back(cv::Scalar(150,150,255));
+    }
+    computeOptimizedNormals(points3D, normalsVector, colors);
+}
+
+
+void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, std::vector< cv::Vec3d >& normalsVector, std::vector<cv::Scalar> &colors)
 {
     //Start visualizer thread
     boost::thread workerThread(*visualizer_); 
     
-    int count = 0;
+    int index = 0;
     for (std::vector<cv::Vec3d>::iterator actualPointIT = points3D.begin(); actualPointIT != points3D.end(); actualPointIT++)
     {
         /*DEBUG*/
-        std::cout << "Punto su cui sto lavorando: " << count++ << std::endl;
+        std::cout << "Punto su cui sto lavorando: " << index << std::endl;
         /*DEBUG*/
         
         // get the point and compute the initial guess for the normal
@@ -240,6 +264,9 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
         // Set mdat for actual point
         m_dat_ = image_1_points_.size();
         
+        // Set the color for the visualizer
+        color_ = new cv::Scalar(colors[index++]);
+        
         if ( m_dat_ > 0)
         {
             if (!optimize_pyramid())
@@ -251,6 +278,7 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
             }
             else
             {
+                visualizer_->keepLastCloud();
                 normalsVector.push_back((*actual_norm_));
             }
         }

@@ -306,7 +306,7 @@ int main(int argc, char **argv) {
         
     no.setImages(img1, img2);
     
-    no.computeOptimizedNormals(triagulated, normalsVector);
+    no.computeOptimizedNormals(triagulated, normalsVector, colors);
     
     ///////////////////////////// 
     // Converto i punti in point cloud e visualizzo la cloud

@@ -41,6 +41,7 @@ pclVisualizerThread::pclVisualizerThread()
         new pcl::visualization::PCLVisualizer("Triangulated points viewer"));
     
     cloud_ = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>());
+    all_estimated_cloud_ = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>());
     
     /*Not visualize an empty pointcloud*/
     pcl::PointXYZRGB noEmptyCloudVisualization;
@@ -51,9 +52,11 @@ pclVisualizerThread::pclVisualizerThread()
     noEmptyCloudVisualization.g = 0;
     noEmptyCloudVisualization.b = 0;
     cloud_->points.push_back(noEmptyCloudVisualization);
+    all_estimated_cloud_->points.push_back(noEmptyCloudVisualization);
     /*Not visualize an empty pointcloud*/
     
     normals_ = pcl::PointCloud<pcl::Normal>::Ptr(new pcl::PointCloud<pcl::Normal>());
+    all_estimated_normals_ = pcl::PointCloud<pcl::Normal>::Ptr(new pcl::PointCloud<pcl::Normal>());
     
     /*Not visualize an empty pointcloud*/
     pcl::Normal noEmptyNormalVisualization;
@@ -61,14 +64,21 @@ pclVisualizerThread::pclVisualizerThread()
     noEmptyNormalVisualization.normal_y = 0;
     noEmptyNormalVisualization.normal_z = 0;
     normals_->points.push_back(noEmptyNormalVisualization);
+    all_estimated_normals_->points.push_back(noEmptyNormalVisualization);
     /*Not visualize an empty pointcloud*/
     
     rgb_ = pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB>::Ptr(
         new pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB>(cloud_));
+    all_estimated_rgb_ = pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB>::Ptr(
+        new pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB>(all_estimated_cloud_));
     
-    viewer_->addPointCloud<pcl::PointXYZRGB>(cloud_, *rgb_, "Triangulated points");
-    viewer_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "Triangulated points");
+    viewer_->addPointCloud<pcl::PointXYZRGB>(cloud_, *rgb_, "Optimization points");
+    viewer_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "Optimization points");
     viewer_->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (cloud_, normals_, 150, 0.35, "normals");
+    
+    viewer_->addPointCloud<pcl::PointXYZRGB>(all_estimated_cloud_, *all_estimated_rgb_, "Estimated points");
+    viewer_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "Estimated points");
+    viewer_->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (all_estimated_cloud_, all_estimated_normals_, 150, 0.35, "estimated normals");
     
     viewer_->setBackgroundColor(0,0,0);
     viewer_->addCoordinateSystem(1.0);
@@ -76,7 +86,7 @@ pclVisualizerThread::pclVisualizerThread()
     viewer_->setCameraPose(0,-10,-1,0,0,0,0,-1,-2);
 }
 
-void pclVisualizerThread::updateClouds(const std::vector< cv::Vec3d >& pointsVector, const cv::Vec3d &normal)
+void pclVisualizerThread::updateClouds(const std::vector< cv::Vec3d >& pointsVector, const cv::Vec3d &normal, const cv::Scalar &color)
 {
     boost::mutex::scoped_lock updateLock(*(updateModelMutex_.get()));
     (*update_) = true;
@@ -119,9 +129,9 @@ void pclVisualizerThread::updateClouds(const std::vector< cv::Vec3d >& pointsVec
         actual.x = pointsVector.at(i)[0];
         actual.y = pointsVector.at(i)[1];
         actual.z = pointsVector.at(i)[2];
-        actual.r = 190;
-        actual.g = 190;
-        actual.b = 255;
+        actual.r = color[0];
+        actual.g = color[1];
+        actual.b = color[2];
         
         cloud_->points.push_back(actual);
     }
@@ -131,27 +141,49 @@ void pclVisualizerThread::updateClouds(const std::vector< cv::Vec3d >& pointsVec
     updateLock.unlock();
 }
 
-
-    void pclVisualizerThread::operator()()
+void pclVisualizerThread::keepLastCloud()
+{
+    boost::mutex::scoped_lock updateLock(*(updateModelMutex_.get()));
+    (*update_) = true;
+    
+    for(std::size_t i = 0; i < cloud_->points.size(); i++)
     {
-        // prepare visualizer named "viewer"
-        while (!viewer_->wasStopped ())
+        all_estimated_cloud_->points.push_back(cloud_->points[i]);
+        all_estimated_normals_->points.push_back(normals_->points[i]);
+    }
+    
+    updateLock.unlock();
+}
+
+
+void pclVisualizerThread::operator()()
+{
+    // prepare visualizer named "viewer"
+    while (!viewer_->wasStopped ())
+    {
+        viewer_->spinOnce (100);
+        
+        // Get lock on the boolean update and check if cloud was updated
+        boost::mutex::scoped_lock updateLock(*(updateModelMutex_.get()));
+        if((*update_))
         {
-            viewer_->spinOnce (100);
-            
-            // Get lock on the boolean update and check if cloud was updated
-            boost::mutex::scoped_lock updateLock(*(updateModelMutex_.get()));
-            if((*update_))
+            if(!viewer_->updatePointCloud(cloud_, "Optimization points"))
             {
-                if(!viewer_->updatePointCloud(cloud_, "Triangulated points"))
-                {
-                    viewer_->addPointCloud<pcl::PointXYZRGB>(cloud_, *rgb_, "Triangulated points");
-                    viewer_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "Triangulated points");
-                }
-//                 viewer_->updatePointCloud<pcl::Normal>(normals_, "normals");
-                (*update_) = false;
+                viewer_->addPointCloud<pcl::PointXYZRGB>(cloud_, *rgb_, "Optimization points");
+                viewer_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "Optimization points");
             }
-            updateLock.unlock();
-            
-        }   
-    } 
+            if(!viewer_->updatePointCloud(all_estimated_cloud_, "Estimated points"))
+            {
+                viewer_->addPointCloud<pcl::PointXYZRGB>(all_estimated_cloud_, *all_estimated_rgb_, "Estimated points");
+                viewer_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "Estimated points");
+            }
+            viewer_->removePointCloud("normals", 0);
+            viewer_->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (cloud_, normals_, 150, 0.35, "normals");
+            viewer_->removePointCloud("estimated normals", 0);
+            viewer_->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (all_estimated_cloud_, all_estimated_normals_, 150, 0.35, "estimated normals");
+            (*update_) = false;
+        }
+        updateLock.unlock();
+        
+    }   
+} 

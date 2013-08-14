@@ -44,7 +44,10 @@ public:
     
     void operator()();
     
-    void updateClouds(const std::vector< cv::Vec3d >& pointsGroup, const cv::Vec3d& normal);
+    void updateClouds(const std::vector< cv::Vec3d >& pointsGroup, const cv::Vec3d& normal, const cv::Scalar &color);
+    
+    void keepLastCloud();
+    
 private:
     bool
         *update_;
@@ -53,13 +56,16 @@ private:
         updateModelMutex_;
         
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr 
-        cloud_;
+        cloud_,
+        all_estimated_cloud_;
     
     pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB>::Ptr 
-        rgb_;
+        rgb_,
+        all_estimated_rgb_;
         
     pcl::PointCloud<pcl::Normal>::Ptr
-        normals_;
+        normals_,
+        all_estimated_normals_;
         
     boost::shared_ptr<pcl::visualization::PCLVisualizer>
         viewer_;

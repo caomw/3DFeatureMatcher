@@ -48,6 +48,7 @@ public:
     void setImages(const cv::Mat &img1, const cv::Mat &img2);
     
     void computeOptimizedNormals(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector);
+    void computeOptimizedNormals(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector, std::vector<cv::Scalar> &colors);
     
 // private methods
 private:
@@ -92,6 +93,8 @@ private:
     
     pclVisualizerThread
         *visualizer_;
+    cv::Scalar
+        *color_;
 };
 
 #endif // NORMALOPTIMIZER_H

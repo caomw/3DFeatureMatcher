@@ -6,7 +6,7 @@ Neighborhoods:
    #Method A: take pixels in the image
    epsilonLMMIN: 1e-8
    pixelsRay: 32
-   pyramids: 4
+   pyramids: 3
    #Method B: take points on the plane
    epsilon: 0.1
    thetas: 15
