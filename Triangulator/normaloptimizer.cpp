@@ -109,12 +109,12 @@ void evaluateNormal( const double *par, int m_dat,
 //     if (1.0 == D->scale || 0.0625 == D->scale)
 //     {
 //         viewPointCloud(pointGroup, normal);
-//         D->pvt->updateClouds(pointGroup, normal, *(D->color));
+        D->pvt->updateClouds(pointGroup, normal, *(D->color));
 //     }
     
     for (std::size_t i = 0; i < m_dat; i++)
     {
-        fvec[i] = (127 + abs(theta - D->thetaInitialGuess) + abs(phi - D->phiInitialGuess)) * (D->imagePoints1->at(i).i_ - imagePoints2.at(i).i_);
+        fvec[i] = (127 + pow(abs(theta - D->thetaInitialGuess) + abs(phi - D->phiInitialGuess) + 1, 4)) * (D->imagePoints1->at(i).i_ - imagePoints2.at(i).i_);
     }
 }
 
