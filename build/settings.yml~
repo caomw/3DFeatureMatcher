@@ -5,7 +5,7 @@ NNDR:
 Neighborhoods:
    #Method A: take pixels in the image
    epsilonLMMIN: 1e-8
-   pixelsRay: 16
+   pixelsRay: 24
    pyramids: 3
    #Method B: take points on the plane
    epsilon: 0.1

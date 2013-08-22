@@ -69,7 +69,7 @@ public:
     
     void extractPixelsContour( const cv::Vec3d& point, std::vector< Pixel >& pixels );
     
-    void get3dPointsFromImage1Pixels(const cv::Vec3d& point, const cv::Vec3d &normal, const std::vector< Pixel >& pixels, std::vector< cv::Vec3d >& pointsGroup);
+    int get3dPointsFromImage1Pixels(const cv::Vec3d& point, const cv::Vec3d &normal, const cv::Mat &pixelMat, std::vector< cv::Vec3d >& pointsGroup);
     
     inline void projectPointsToImage2( const std::vector<cv::Vec3d> &pointsGroup, std::vector<Pixel> &pixels ) {projectPointsToImage2(pointsGroup, 1.0, pixels);}
     
@@ -90,6 +90,9 @@ private:
     
     void projectPointToPlane( const cv::Vec3d& newPoint, const cv::Vec3d& featurePoint, const cv::Vec3d& normal, cv::Vec3d& pointOnThePlane );
     
+    bool isInBoundingBox( const cv::Vec3d &point );
+    
+    bool isPixelGood( const Pixel& pixel, const double scale );
 // Private data
 private:
     

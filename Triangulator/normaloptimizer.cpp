@@ -32,6 +32,10 @@
 #define THETA_INDEX 1
 #define PHI_INDEX 0
 
+#ifndef ENABLE_VISUALIZER_
+#define ENABLE_VISUALIZER_
+#endif
+
 typedef struct {
     
     SingleCameraTriangulator 
@@ -44,6 +48,8 @@ typedef struct {
         scale;
     std::vector<Pixel> 
         *imagePoints1;
+    cv::Mat
+        *imagePoints1_MAT;
     pclVisualizerThread
         *pvt;
     cv::Scalar
@@ -82,37 +88,27 @@ void evaluateNormal( const double *par, int m_dat,
         pointGroup;
     std::vector<Pixel>
         imagePoints2;
+    int 
+        goodNormal = 0;
     
     // obtain 3D points
-    D->sct->get3dPointsFromImage1Pixels(*(D->point), normal, *(D->imagePoints1), pointGroup);
-    int 
-        good = 0;
+    goodNormal += D->sct->get3dPointsFromImage1Pixels(*(D->point), normal, *(D->imagePoints1_MAT), pointGroup);
     
     // update imagePoints1 to actual scale pixels intensity
-    good = D->sct->updateImage1PixelsIntensity(D->scale, *(D->imagePoints1));
-    
-    if (0 != good)
-    {
-//         std::cout << "BAD POINT - 2" << std::endl;
-        (*info) = -1;
-        return;
-    }
+    goodNormal += D->sct->updateImage1PixelsIntensity(D->scale, *(D->imagePoints1));
     
     // get imagePoints2 at actual scale
-    good = D->sct->projectPointsToImage2(pointGroup, D->scale, imagePoints2);
+    goodNormal += D->sct->projectPointsToImage2(pointGroup, D->scale, imagePoints2);
     
-    if (0 != good)
+    if (0 != goodNormal)
     {
-//         std::cout << "BAD POINT - 1" << std::endl;
         (*info) = -1;
         return;
     }
     
-//     if (1.0 == D->scale || 0.0625 == D->scale)
-//     {
-//         viewPointCloud(pointGroup, normal);
-        D->pvt->updateClouds(pointGroup, normal, *(D->color));
-//     }
+#ifdef ENABLE_VISUALIZER_
+    D->pvt->updateClouds(pointGroup, normal, *(D->color));
+#endif
     
     for (std::size_t i = 0; i < m_dat; i++)
     {
@@ -129,7 +125,9 @@ NormalOptimizer::NormalOptimizer(const cv::FileStorage settings, SingleCameraTri
     
     sct_ = sct;
     
+#ifdef ENABLE_VISUALIZER_
     visualizer_ = new pclVisualizerThread();
+#endif
 }
 
 void NormalOptimizer::setImages(const cv::Mat& img1, const cv::Mat& img2)
@@ -207,7 +205,7 @@ bool NormalOptimizer::optimize(const int pyrLevel)
     sct_->setImages(pyr_img_1_[pyrLevel],pyr_img_2_[pyrLevel]);
     
     lmminDataStruct
-        data = { sct_, actual_point_, m_dat_, actual_scale_, &image_1_points_, visualizer_, color_, theta, phi };
+        data = { sct_, actual_point_, m_dat_, actual_scale_, &image_1_points_, image_1_points_MAT_, visualizer_, color_, theta, phi };
         
     /* auxiliary parameters */
     lm_status_struct 
@@ -248,8 +246,11 @@ void NormalOptimizer::computeOptimizedNormals(std::vector< cv::Vec3d >& points3D
 
 void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, std::vector< cv::Vec3d >& normalsVector, std::vector<cv::Scalar> &colors)
 {
+    
+#ifdef ENABLE_VISUALIZER_
     //Start visualizer thread
     boost::thread workerThread(*visualizer_); 
+#endif
     
     int index = 0;
     for (std::vector<cv::Vec3d>::iterator actualPointIT = points3D.begin(); actualPointIT != points3D.end(); /*actualPointIT++*/)
@@ -264,6 +265,12 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
 
         // Get the neighborhood of the feature point pixel
         sct_->extractPixelsContour((*actual_point_), image_1_points_);
+        
+        image_1_points_MAT_ = new cv::Mat(cv::Size(1, image_1_points_.size()), CV_64FC2, cv::Scalar(0));
+        for (std::size_t i = 0; i < image_1_points_.size(); i++)
+        {
+            image_1_points_MAT_->at<cv::Vec2d>(i) = cv::Vec2d(image_1_points_.at(i).x_, image_1_points_.at(i).y_);
+        }
         
         // Set mdat for actual point
         m_dat_ = image_1_points_.size();
@@ -280,19 +287,25 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
             }
             else
             {
+#ifdef ENABLE_VISUALIZER_
                 visualizer_->keepLastCloud();
+#endif
                 normalsVector.push_back((*actual_norm_));
                 actualPointIT++;
             }
         }
         else
         {
-            actualPointIT++;
+            points3D.erase(actualPointIT);
+            std::cout << "Not enough pixels!" << std::endl;
         }
     }
     
+    
+#ifdef ENABLE_VISUALIZER_
     // join the thread
     workerThread.join(); 
+#endif
     
     std::cout << points3D.size() << " - " << normalsVector.size() << std::endl;
 }

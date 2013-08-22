@@ -89,6 +89,9 @@ private:
         
     std::vector<Pixel>
         image_1_points_;
+        
+    cv::Mat
+        *image_1_points_MAT_;
     /*LMMIN parameters*/
     
     pclVisualizerThread
