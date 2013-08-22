@@ -74,7 +74,7 @@ void evaluateNormal( const double *par, int m_dat,
     // lmmin can go over 1 for normal coordinate, which is wrong for a normal versor.
     if (isnan(normal[2]) || isnan(normal[1]) || isnan(normal[0]))
     {
-        std::cout << "male" << std::endl;
+//         std::cout << "male" << std::endl;
         exit(-3);
     }
     
@@ -91,8 +91,9 @@ void evaluateNormal( const double *par, int m_dat,
     // update imagePoints1 to actual scale pixels intensity
     good = D->sct->updateImage1PixelsIntensity(D->scale, *(D->imagePoints1));
     
-    if (good != 0)
+    if (0 != good)
     {
+//         std::cout << "BAD POINT - 2" << std::endl;
         (*info) = -1;
         return;
     }
@@ -100,8 +101,9 @@ void evaluateNormal( const double *par, int m_dat,
     // get imagePoints2 at actual scale
     good = D->sct->projectPointsToImage2(pointGroup, D->scale, imagePoints2);
     
-    if (good != 0)
+    if (0 != good)
     {
+//         std::cout << "BAD POINT - 1" << std::endl;
         (*info) = -1;
         return;
     }
@@ -114,7 +116,7 @@ void evaluateNormal( const double *par, int m_dat,
     
     for (std::size_t i = 0; i < m_dat; i++)
     {
-        fvec[i] = (127 + pow(abs(theta - D->thetaInitialGuess) + abs(phi - D->phiInitialGuess) + 1, 4)) * (D->imagePoints1->at(i).i_ - imagePoints2.at(i).i_);
+        fvec[i] = (D->imagePoints1->at(i).i_ - imagePoints2.at(i).i_);
     }
 }
 
@@ -175,6 +177,7 @@ bool NormalOptimizer::optimize_pyramid()
         if (!optimize(i))
         {
             return false;
+            std::cout << "BAD NORMAL - 3" << std::endl;
         }
         
 //         std::cout << " Estimated normal: " << *actual_norm_ << std::endl;
@@ -221,7 +224,8 @@ bool NormalOptimizer::optimize(const int pyrLevel)
     lmmin( n_par, par, m_dat_, &data, evaluateNormal,
            lm_printout_std, &control, 0/*&princon*/, &status );
     
-    if (status.info < 0)
+    /// status.info == 11 -> interrupt for bad points
+    if (status.info == 11)
     {
         return false;
     }
@@ -248,7 +252,7 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
     boost::thread workerThread(*visualizer_); 
     
     int index = 0;
-    for (std::vector<cv::Vec3d>::iterator actualPointIT = points3D.begin(); actualPointIT != points3D.end(); actualPointIT++)
+    for (std::vector<cv::Vec3d>::iterator actualPointIT = points3D.begin(); actualPointIT != points3D.end(); /*actualPointIT++*/)
     {
         /*DEBUG*/
         std::cout << "Punto su cui sto lavorando: " << index << std::endl;
@@ -267,20 +271,23 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
         // Set the color for the visualizer
         color_ = new cv::Scalar(colors[index++]);
         
-        if ( m_dat_ > 0)
+        if ( 0 < m_dat_ )
         {
             if (!optimize_pyramid())
             {
-                // remove the point, it is bad
-                // points3D.erase(actualPointIT);
-                // remove it later
-                std::cout << "Bad point!!" << std::endl;
+                points3D.erase(actualPointIT);
+                std::cout << "Bad point!" << std::endl;
             }
             else
             {
                 visualizer_->keepLastCloud();
                 normalsVector.push_back((*actual_norm_));
+                actualPointIT++;
             }
+        }
+        else
+        {
+            actualPointIT++;
         }
     }
     
