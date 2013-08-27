@@ -38,7 +38,7 @@ pclVisualizerThread::pclVisualizerThread()
     updateModelMutex_ = boost::shared_ptr<boost::mutex>(new boost::mutex());
     
     viewer_ = boost::shared_ptr<pcl::visualization::PCLVisualizer>(
-        new pcl::visualization::PCLVisualizer("Triangulated points viewer"));
+        new pcl::visualization::PCLVisualizer("Normal optimization viewer"));
     
     cloud_ = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>());
     all_estimated_cloud_ = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>());

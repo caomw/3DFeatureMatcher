@@ -3,14 +3,24 @@ NNDR:
    epsilon: 0.4
 
 Neighborhoods:
-   #Method A: take pixels in the image
+   #Part for normal optimization: take pixels in the image
    epsilonLMMIN: 1e-8
-   pixelsRay: 24
+   pixelsRay: 32
    pyramids: 3
-   #Method B: take points on the plane
-   epsilon: 0.1
-   thetas: 15
-   rays: 5
+
+   #Part for patch extraction: take points on the plane
+   #square or circular
+   method: square
+   
+   #1cm per pixel
+   cmPerPixel: 0.5
+   
+   #in meters -> 1cm per pixel!
+   epsilon: 0.32
+
+   #These only for circular neighborhood
+   #thetas: 15
+   #rays: 5
 
 FeatureOptions:
    DetectorType: SURF

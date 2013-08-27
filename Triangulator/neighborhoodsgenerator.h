@@ -83,9 +83,18 @@ public:
     /** Neighborhoods are sampled by a series of points in concentric circumferences
      *  Pass an empty normal mat for the initial guess
      */
-    void computeNeighborhoodsByNormals( const cv::Mat &points, cv::Mat &normals, std::vector<cv::Mat> &neighborhoodsVector );
+    void computeCircularNeighborhoodsByNormals( const cv::Mat &points, cv::Mat &normals, std::vector<cv::Mat> &neighborhoodsVector );
     
-    void computeNeighborhoodByNormal( const cv::Vec3d& point, cv::Vec3d& normal, cv::Mat& neighborhood );
+    void computeCircularNeighborhoodByNormal( const cv::Vec3d& point, cv::Vec3d& normal, cv::Mat& neighborhood );
+    
+    /** Neighborhoods are sampled by a series of points in a square
+     *  Pass an empty normal mat for the initial guess
+     */
+    void computeSquareNeighborhoodsByNormals( const std::vector< cv::Matx44d >& featuresFrames, std::vector< std::vector< cv::Vec3d > >& neighborhoodsVector );
+    
+    void computeSquareNeighborhoodByNormal( const cv::Matx44d& featureFrame, std::vector< cv::Vec3d >& neighborhood );
+    
+    
     
 private:
     NeighborhoodsGenerator();       //> No default constructor
@@ -95,7 +104,8 @@ private:
         lookUpTable_;               //> Precalculated values for the neighborhoods computation
         
     double
-        epsilon_;                   //> Take a neighborhood of epsilon meters around each point
+        epsilon_,            //> Take a neighborhood of epsilon meters around each point (ray if circular, mid edge if square)
+        cm_per_pixel_;                  
         
     int
         number_of_angles_,          //> The number of angles to sample the neighborhood in each circumference

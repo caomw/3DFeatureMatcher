@@ -50,6 +50,12 @@ public:
     void computeOptimizedNormals(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector);
     void computeOptimizedNormals(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector, std::vector<cv::Scalar> &colors);
     
+    void computeFeaturesFrames(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector, std::vector<cv::Matx44d> &featuresFrames);
+    
+    void startVisualizerThread();
+    
+    void stopVisualizerThread();
+    
 // private methods
 private:
     NormalOptimizer(); // Avoid default constructor
@@ -73,6 +79,9 @@ private:
     SingleCameraTriangulator
         *sct_;
         
+    cv::Vec3d
+        *gravity_;
+        
     /*LMMIN parameters*/
     double
         epsilon_lmmin_;
@@ -94,6 +103,8 @@ private:
         *image_1_points_MAT_;
     /*LMMIN parameters*/
     
+    boost::thread 
+        *workerThread_;
     pclVisualizerThread
         *visualizer_;
     cv::Scalar

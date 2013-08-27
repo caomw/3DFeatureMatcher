@@ -15,6 +15,7 @@
 #include "DescriptorsMatcher/descriptorsmatcher.h"
 #include "Triangulator/singlecameratriangulator.h"
 #include "Triangulator/normaloptimizer.h"
+#include "Triangulator/neighborhoodsgenerator.h"
 #include "pclvisualizerthread.h"
 #include "tools.h"
 
@@ -141,9 +142,36 @@ int main(int argc, char **argv) {
         
     no.setImages(img1, img2);
     
+    no.startVisualizerThread();
+    
     no.computeOptimizedNormals(triagulated, normalsVector, colors);
     
-    ///////////////////////////// 
+/*DEBUG*/
+// Add fake point and normal for test purpose
+cv::Vec3d fakeP(0,0,0);
+cv::Vec3d fakeN(0,0,-1);
+cv::Scalar fakeC(255,255,255);
+triagulated.push_back(fakeP);
+normalsVector.push_back(fakeN);
+colors.push_back(fakeC);
+/*DEBUG*/
+    
+    std::vector<cv::Matx44d>
+        featuresFrames;
+        
+    no.computeFeaturesFrames(triagulated, normalsVector, featuresFrames);
+    
+    ////////////////////////////
+    // Compute neighborhoods
+    NeighborhoodsGenerator
+    ng(fs);
+    
+    std::vector< std::vector<cv::Vec3d> >
+    neighborhoodsVector;
+    
+    ng.computeSquareNeighborhoodsByNormals(featuresFrames, neighborhoodsVector);
+    
+    ////////////////////////////
     // Converto i punti in point cloud e visualizzo la cloud
     
     pcl::PointCloud<pcl::Normal>::Ptr
@@ -156,8 +184,11 @@ int main(int argc, char **argv) {
             
         normalsCloud->points.push_back(normal);
     }
-        
-    viewPointCloudAndNormals(triagulated, normalsCloud, colors);
+    no.stopVisualizerThread();
+    
+    viewPointCloudNormalsAndFrames(triagulated, normalsCloud, colors, featuresFrames);
+    
+//     viewPointCloudNormalsFramesAndNeighborhood(neighborhoodsVector, normalsVector, colors, featuresFrames);
     
     return 0;
 }

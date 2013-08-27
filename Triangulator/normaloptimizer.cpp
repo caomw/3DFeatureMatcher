@@ -32,9 +32,9 @@
 #define THETA_INDEX 1
 #define PHI_INDEX 0
 
-#ifndef ENABLE_VISUALIZER_
-#define ENABLE_VISUALIZER_
-#endif
+// #ifndef ENABLE_VISUALIZER_
+// #define ENABLE_VISUALIZER_
+// #endif
 
 typedef struct {
     
@@ -124,6 +124,26 @@ NormalOptimizer::NormalOptimizer(const cv::FileStorage settings, SingleCameraTri
     settings["Neighborhoods"]["epsilonLMMIN"] >> epsilon_lmmin_;
     
     sct_ = sct;
+    
+    // 2 Camera-IMU rotation
+    std::vector<double>
+        rodriguesIC_vector;
+    
+        settings["CameraSettings"]["rodriguesIC"] >> rodriguesIC_vector;
+        
+    cv::Vec3d
+        rodriguesIC(rodriguesIC_vector[0],rodriguesIC_vector[1],rodriguesIC_vector[2]);
+        
+    cv::Matx33d rotation_IC;
+    
+    cv::Rodrigues(rodriguesIC, rotation_IC);
+    
+    // TODO: gravity set to y axes, check if it is correct
+    gravity_ = new cv::Vec3d(0,0,-1);
+    
+    *gravity_ = rotation_IC.inv() * (*gravity_);
+    
+    std::cout << *gravity_ << std::endl;
     
 #ifdef ENABLE_VISUALIZER_
     visualizer_ = new pclVisualizerThread();
@@ -243,14 +263,32 @@ void NormalOptimizer::computeOptimizedNormals(std::vector< cv::Vec3d >& points3D
     computeOptimizedNormals(points3D, normalsVector, colors);
 }
 
+void NormalOptimizer::startVisualizerThread()
+{
+#ifdef ENABLE_VISUALIZER_
+    //Start visualizer thread
+    workerThread_ = new boost::thread(*visualizer_); 
+#endif
+}
+
+void NormalOptimizer::stopVisualizerThread()
+{
+#ifdef ENABLE_VISUALIZER_
+    // join the thread
+    workerThread_->join(); 
+#endif
+}
+
 
 void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, std::vector< cv::Vec3d >& normalsVector, std::vector<cv::Scalar> &colors)
 {
     
-#ifdef ENABLE_VISUALIZER_
-    //Start visualizer thread
-    boost::thread workerThread(*visualizer_); 
-#endif
+    /// TODO: check if the visualizer thread is on...
+    
+//     cv::Mat 
+//         img1_patches = cv::imread("/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000750.pgm", CV_LOAD_IMAGE_COLOR);
+//     cv::Mat 
+//         img2_patches = cv::imread("/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000770.pgm", CV_LOAD_IMAGE_COLOR);
     
     int index = 0;
     for (std::vector<cv::Vec3d>::iterator actualPointIT = points3D.begin(); actualPointIT != points3D.end(); /*actualPointIT++*/)
@@ -290,6 +328,51 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
 #ifdef ENABLE_VISUALIZER_
                 visualizer_->keepLastCloud();
 #endif
+      
+                
+                //// CODE TO DRAW image 1
+//                 for( std::vector<Pixel>::iterator it = image_1_points_.begin(); it != image_1_points_.end(); it++)
+//                 {
+// //                     cv::Vec3b pixel_color(color_[0], color_[1], color_[2]);
+//                     
+//                     cv::Point2d
+//                         point ((*it).x_, (*it).y_);
+//                     
+//                     cv::Point2i
+//                         pixel(round(point.x),round(point.y));
+//                         
+//                     img1_patches.at<cv::Vec3b>(pixel)[0] = (*color_)[0];
+//                     img1_patches.at<cv::Vec3b>(pixel)[1] = (*color_)[1];
+//                     img1_patches.at<cv::Vec3b>(pixel)[2] = (*color_)[2];
+//                 }
+//                 cv::imwrite("matches.pgm", img1_patches);
+                
+                //// CODE TO DRAW image 2
+//                 std::vector<cv::Vec3d>
+//                     pointGroup;
+//                 std::vector<Pixel>
+//                     imagePoints2;
+//                 
+//                 // obtain 3D points
+//                 sct_->get3dPointsFromImage1Pixels(*actual_point_, *actual_norm_, *image_1_points_MAT_, pointGroup);
+//                 
+//                 sct_->projectPointsToImage2(pointGroup, 1.0, imagePoints2);
+//                 for( std::vector<Pixel>::iterator it = imagePoints2.begin(); it != imagePoints2.end(); it++)
+//                 {
+// //                     cv::Vec3b pixel_color(color_[0], color_[1], color_[2]);
+//                     
+//                     cv::Point2d
+//                         point ((*it).x_, (*it).y_);
+//                     
+//                     cv::Point2i
+//                         pixel(round(point.x),round(point.y));
+//                         
+//                     img2_patches.at<cv::Vec3b>(pixel)[0] = (*color_)[0];
+//                     img2_patches.at<cv::Vec3b>(pixel)[1] = (*color_)[1];
+//                     img2_patches.at<cv::Vec3b>(pixel)[2] = (*color_)[2];
+//                 }
+//                 cv::imwrite("image2pixels.pgm", img2_patches);
+                
                 normalsVector.push_back((*actual_norm_));
                 actualPointIT++;
             }
@@ -301,12 +384,58 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
         }
     }
     
-    
-#ifdef ENABLE_VISUALIZER_
-    // join the thread
-    workerThread.join(); 
-#endif
-    
     std::cout << points3D.size() << " - " << normalsVector.size() << std::endl;
 }
 
+void NormalOptimizer::computeFeaturesFrames(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector, std::vector< cv::Matx44d >& featuresFrames)
+{
+    cv::Matx44d
+        actualFrame;
+        
+    cv::Vec3d
+        x, 
+        y, 
+        z,
+        e1(1,0,0), 
+        e2(0,1,0), 
+        e3(0,0,1);
+    
+    std::vector<cv::Vec3d>::iterator 
+        pt = points3D.begin(),
+        nr = normalsVector.begin();
+        
+    while ( pt != points3D.end() && nr != normalsVector.end() )
+    {
+        // z is set equal to the normal
+        z = (*nr);
+        // x is perpendicular to the plane defined by the gravity and z
+        x = gravity_->cross(z) /*/ cv::norm(gravity_->cross(z))*/;
+        // y is perpendicular to the plane z-x
+        y = z.cross(x) /*/ cv::norm(z.cross(x))*/;
+        
+        cv::normalize(x,x);
+        cv::normalize(y,y);
+        
+        // put the basis as columns in the matrix
+        actualFrame(0,0) = e1.dot(x); actualFrame(0,1) = e1.dot(y); actualFrame(0,2) = e1.dot(z); actualFrame(0,3) = (*pt)[0];
+        actualFrame(1,0) = e2.dot(x); actualFrame(1,1) = e2.dot(y); actualFrame(1,2) = e2.dot(z); actualFrame(1,3) = (*pt)[1];
+        actualFrame(2,0) = e3.dot(x); actualFrame(2,1) = e3.dot(y); actualFrame(2,2) = e3.dot(z); actualFrame(2,3) = (*pt)[2];
+        actualFrame(3,0) = 0;         actualFrame(3,1) = 0;         actualFrame(3,2) = 0;         actualFrame(3,3) = 1;
+        
+        
+        featuresFrames.push_back(actualFrame);
+        
+//         std::cout << x.dot(y) << " - " << x.dot(z) << " - " << y.dot(z) << std::endl;
+        
+//         cv::Matx33d rot;
+//         
+//         rot(0,0) = actualFrame(0,0); rot(0,1) = actualFrame(0,1); rot(0,2) = actualFrame(0,2);
+//         rot(1,0) = actualFrame(1,0); rot(1,1) = actualFrame(1,1); rot(1,2) = actualFrame(1,2);
+//         rot(2,0) = actualFrame(2,0); rot(2,1) = actualFrame(2,1); rot(2,2) = actualFrame(2,2);
+        
+//         std::cout << rot.t() << " --- " << std::endl << rot.inv() << std::endl;
+        
+        pt++; nr++;
+    }
+    
+}

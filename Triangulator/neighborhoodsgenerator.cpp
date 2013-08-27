@@ -35,29 +35,105 @@
 
 NeighborhoodsGenerator::NeighborhoodsGenerator(cv::FileStorage settings)
 {
-    settings["Neighborhoods"]["epsilon"] >> epsilon_;
-    settings["Neighborhoods"]["thetas"] >> number_of_angles_;
-    settings["Neighborhoods"]["rays"] >> number_of_rays_;
+    std::string method;
+    settings["Neighborhoods"]["method"] >> method;
     
-    double
-        rayIncrement = epsilon_ / number_of_rays_,
-        thetaIncrement = 2 * M_PI / number_of_angles_;
-        
-    for (std::size_t i = 1; i <= number_of_rays_; i++)
+    if (method.compare("square") == 0)
     {
-        for (std::size_t j = 0; j < number_of_angles_; j++)
+        settings["Neighborhoods"]["epsilon"] >> epsilon_;
+        settings["Neighborhoods"]["cmPerPixel"] >> cm_per_pixel_; 
+    }
+    else if (method.compare("circular") == 0)
+    {
+        settings["Neighborhoods"]["epsilon"] >> epsilon_;
+        settings["Neighborhoods"]["thetas"] >> number_of_angles_;
+        settings["Neighborhoods"]["rays"] >> number_of_rays_;
+        
+        double
+            rayIncrement = epsilon_ / number_of_rays_,
+            thetaIncrement = 2 * M_PI / number_of_angles_;
+        
+        for (std::size_t i = 1; i <= number_of_rays_; i++)
         {
-            double t = j * thetaIncrement;
+            for (std::size_t j = 0; j < number_of_angles_; j++)
+            {
+                double t = j * thetaIncrement;
+                
+                lookUpTable_.push_back( precomputedValue( ray(i * rayIncrement),
+                                                          theta(t),
+                                                          sinTheta(theta(t)),
+                                                          sinTheta2(theta(t)) ));
+            }
+        }
+    }
+    else
+    {
+        std::cout << "Unsupported method for plane neighborhood extraction" << std::endl;
+        exit(-10);
+    }
+}
+
+void NeighborhoodsGenerator::computeSquareNeighborhoodsByNormals(const std::vector<cv::Matx44d>& featuresFrames,
+                                                                 std::vector< std::vector<cv::Vec3d> >& neighborhoodsVector)
+{
+    std::vector<cv::Vec3d>
+        neighborhood;
+    
+    neighborhoodsVector.clear();
+    
+    for(std::vector<cv::Matx44d>::const_iterator it = featuresFrames.begin(); it != featuresFrames.end(); it++)
+    {
+        computeSquareNeighborhoodByNormal((*it), neighborhood);
+        
+        neighborhoodsVector.push_back(neighborhood);
+    }
+}
+
+void NeighborhoodsGenerator::computeSquareNeighborhoodByNormal(const cv::Matx44d& featureFrame,
+                                                               std::vector<cv::Vec3d> &neighborhood)
+{
+    int
+        numberOfPointsPerEdge = 2 * ((int) floor(epsilon_ / (0.01 * cm_per_pixel_)));
+        
+    double
+        increment = cm_per_pixel_ * 0.01;
+        
+    neighborhood.clear();
+    
+    cv::Vec4d
+        pointH(-epsilon_, -epsilon_, 0, 1);
+        
+    cv::Vec3d
+        point;
+    
+    for (int i = 0; i < numberOfPointsPerEdge; i++)
+    {
+        for (int j = 0; j < numberOfPointsPerEdge; j++)
+        {
+            pointH[0] = -epsilon_ + increment * j;
+            pointH[1] = -epsilon_ + increment * i;
+            pointH[2] = 0;
+            pointH[3] = 1;
             
-            lookUpTable_.push_back( precomputedValue( ray(i * rayIncrement),
-                                                      theta(t),
-                                                      sinTheta(theta(t)),
-                                                      sinTheta2(theta(t)) ));
+            pointH = featureFrame * pointH;
+            
+            if (pointH[3] != 1)
+            {
+                pointH = pointH / pointH[3];
+            }
+            
+            point[0] = pointH[0];
+            point[1] = pointH[1];
+            point[2] = pointH[2];
+            
+            neighborhood.push_back(point);
         }
     }
 }
 
-void NeighborhoodsGenerator::computeNeighborhoodsByNormals(const cv::Mat& points, cv::Mat& normals, std::vector< cv::Mat >& neighborhoodsVector)
+
+void NeighborhoodsGenerator::computeCircularNeighborhoodsByNormals(const cv::Mat& points, cv::Mat& normals, 
+                                                                   std::vector< cv::Mat >& neighborhoodsVector)
 {
     unsigned int
         numberOfPoints = points.cols,
@@ -132,7 +208,7 @@ void NeighborhoodsGenerator::computeNeighborhoodsByNormals(const cv::Mat& points
     
 }
 
-void NeighborhoodsGenerator::computeNeighborhoodByNormal(const cv::Vec3d& point, cv::Vec3d& normal, cv::Mat& neighborhood)
+void NeighborhoodsGenerator::computeCircularNeighborhoodByNormal(const cv::Vec3d& point, cv::Vec3d& normal, cv::Mat& neighborhood)
 {
     unsigned int
         numberOfSamples = number_of_angles_ * number_of_rays_;
