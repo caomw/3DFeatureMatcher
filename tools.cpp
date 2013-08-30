@@ -192,7 +192,7 @@ void drawMatches(const cv::Mat &img1, const cv::Mat &img2, cv::Mat &window, cons
 
 void drawBackProjectedPoints(const cv::Mat &input, cv::Mat &output, const std::vector<cv::Mat> &points, const std::vector< cv::Scalar > &colors)
 {
-    output = input;
+    cv::cvtColor(input, output, CV_GRAY2BGR);
     
 //     output.at<cv::Vec3b>(1,1) = cv::Vec3b(255,0,0);
     
@@ -209,9 +209,14 @@ void drawBackProjectedPoints(const cv::Mat &input, cv::Mat &output, const std::v
             cv::Point2i
                 pixel(round(point.x),round(point.y));
                 
-//             std::cout << point << " - " << pixel << " - " << colors.at(i)[0] << " " << colors.at(i)[1] << " " << colors.at(i)[2] << std::endl;
+            // Check for bad points
+            if ( !(pixel.x < 0) && !(pixel.x > ( output.cols)) &&
+                 !(pixel.y < 0) && !(pixel.y > ( output.rows)) )
+            {
+                //             std::cout << point << " - " << pixel << " - " << colors.at(i)[0] << " " << colors.at(i)[1] << " " << colors.at(i)[2] << std::endl;
                 
-            output.at<cv::Vec3b>(pixel) = cv::Vec3b(colors.at(i)[0], colors.at(i)[1], colors.at(i)[2]);
+                output.at<cv::Vec3b>(pixel) = cv::Vec3b(colors.at(i)[0], colors.at(i)[1], colors.at(i)[2]);
+            }
         }
     }
 }
@@ -615,7 +620,7 @@ void viewPointCloudNormalsFramesAndNeighborhood(const std::vector< std::vector< 
     pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
     viewer->addPointCloud<pcl::PointXYZRGB>(cloud, rgb, "Triangulated points");
     viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "Triangulated points");
-    viewer->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (cloud, normalsCloud, 300, 0.35, "normals");
+    viewer->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (cloud, normalsCloud, 1700, 0.15, "normals");
     viewer->addCoordinateSystem(1.0);
     viewer->initCameraParameters();
     viewer->setCameraPose(0,-8,-1,0,0,0,0,-1,-2);
@@ -652,6 +657,102 @@ void viewPointCloudNormalsFramesAndNeighborhood(const std::vector< std::vector< 
         viewer->addArrow(base, xP, 1.0, 0, 0, false, id+"x");
         viewer->addArrow(base, yP, 0, 1.0, 0, false, id+"y");
         viewer->addArrow(base, zP, 0, 0, 1.0, false, id+"z");
+        
+        f_it++; count++;
+    }
+    
+    while (!viewer->wasStopped())
+    {
+        viewer->spin();
+    }
+    
+}
+
+
+void viewPointCloudNormalsFramesNeighborhoodAndGravity(const std::vector< std::vector< cv::Vec3d > >& neighborhoodsVector, std::vector< cv::Vec3d >& normals, const std::vector< cv::Scalar >& colors, std::vector< cv::Matx44d >& featuresFrames, cv::Vec3d& gravity)
+{
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr
+    cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
+    
+    pcl::PointCloud<pcl::Normal>::Ptr
+    normalsCloud (new pcl::PointCloud<pcl::Normal>());
+    std::vector<cv::Vec3d>::iterator normal_it = normals.begin();
+    
+    int count = 0;
+    for (std::vector< std::vector< cv::Vec3d > >::const_iterator n_it = neighborhoodsVector.begin(); n_it != neighborhoodsVector.end(); n_it++)
+    {
+        for (std::vector<cv::Vec3d>::const_iterator it = (*n_it).begin(); it != (*n_it).end(); it++)
+        {
+            pcl::PointXYZRGB actual;
+            actual.x = (*it)[0];
+            actual.y = (*it)[1];
+            actual.z = (*it)[2];
+            actual.r = colors.at(count)[2];
+            actual.g = colors.at(count)[1];
+            actual.b = colors.at(count)[0];
+            
+            cloud->points.push_back(actual);
+            
+            
+            pcl::Normal
+            normal((*normal_it)[0],(*normal_it)[1],(*normal_it)[2]);
+            normalsCloud->points.push_back(normal);
+        }
+        count++;
+        normal_it++;
+    }
+    cloud->width = (int) cloud->points.size ();
+    cloud->height = 1;
+    
+    ///////////////////////////// 
+    // Visualizzo la point cloud
+    boost::shared_ptr< pcl::visualization::PCLVisualizer >
+    viewer( new pcl::visualization::PCLVisualizer("Triangulated points viewer") );
+    
+    viewer->setBackgroundColor(0,0,0);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
+    viewer->addPointCloud<pcl::PointXYZRGB>(cloud, rgb, "Triangulated points");
+    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "Triangulated points");
+    viewer->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (cloud, normalsCloud, 1700, 0.15, "normals");
+    viewer->addCoordinateSystem(1.0);
+    viewer->initCameraParameters();
+    viewer->setCameraPose(0,-8,-1,0,0,0,0,-1,-2);
+    
+    // Add frames
+    std::string id;
+    count = 0;
+    std::vector<cv::Matx44d>::iterator f_it = featuresFrames.begin();
+    while ( f_it != featuresFrames.end() )
+    {
+        //         Eigen::Affine3f T;
+        //         
+        //         T.matrix() << (*f_it)(0,0), (*f_it)(0,1), (*f_it)(0,2), (*f_it)(0,3),
+        //         (*f_it)(1,0), (*f_it)(1,1), (*f_it)(1,2), (*f_it)(1,3),
+        //         (*f_it)(2,0), (*f_it)(2,1), (*f_it)(2,2), (*f_it)(2,3),
+        //         (*f_it)(3,0), (*f_it)(3,1), (*f_it)(3,2), (*f_it)(3,3);
+        //         
+        //         viewer->addCoordinateSystem(0.3, T);
+        
+        // Try use addArrow instead of addFrame 
+        pcl::PointXYZ
+            base((*f_it)(0,3),(*f_it)(1,3),(*f_it)(2,3)), // The frame start on the feature point
+            xP((*f_it)(0,0),(*f_it)(1,0),(*f_it)(2,0)),
+            yP((*f_it)(0,1),(*f_it)(1,1),(*f_it)(2,1)),
+            zP((*f_it)(0,2),(*f_it)(1,2),(*f_it)(2,2)),
+            g(gravity[0], gravity[1], gravity[2]);
+        
+        // Move arrows to base point
+        xP.x = xP.x + base.x; xP.y = xP.y + base.y; xP.z = xP.z + base.z;
+        yP.x = yP.x + base.x; yP.y = yP.y + base.y; yP.z = yP.z + base.z;
+        zP.x = zP.x + base.x; zP.y = zP.y + base.y; zP.z = zP.z + base.z;
+        g.x = g.x + base.x; g.y = g.y + base.y; g.z = g.z + base.z;
+        
+        id = "-" + NumberToString<int>(count);
+        
+        viewer->addArrow(base, xP, 1.0, 0, 0, false, id+"x");
+        viewer->addArrow(base, yP, 0, 1.0, 0, false, id+"y");
+        viewer->addArrow(base, zP, 0, 0, 1.0, false, id+"z");
+        viewer->addArrow(base, g, 1.0, 1.0, 1.0, false, id+"g");
         
         f_it++; count++;
     }

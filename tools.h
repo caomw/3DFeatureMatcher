@@ -40,6 +40,9 @@
 
 #include <boost/thread/thread.hpp>
 
+template <typename T>
+std::string NumberToString(T pNumber);
+
 /** Compute camera matrix and distortion coefficients with the parameters in a file settings
  */
 void computeCameraMatixAndDistCoeff(const cv::FileStorage &settings, cv::Matx33d &cameraMatrix, cv::Mat &distCoeff);
@@ -84,6 +87,8 @@ void viewPointCloudAndNormals(const std::vector< cv::Vec3d >& triagulatedPoints,
 void viewPointCloudNormalsAndFrames(const std::vector<cv::Vec3d>& triagulatedPoints, pcl::PointCloud< pcl::Normal >::ConstPtr normals, const std::vector< cv::Scalar >& colors, std::vector<cv::Matx44d> &featuresFrames);
 void viewPointCloudNeighborhood(const cv::Mat &triagulatedPoints, std::vector< cv::Mat > &neighborhoodsVector, const std::vector< cv::Scalar > &colors);
 void viewPointCloudNormalsFramesAndNeighborhood(const std::vector< std::vector< cv::Vec3d > >& neighborhoodsVector, std::vector< cv::Vec3d >& normals, const std::vector< cv::Scalar >& colors, std::vector< cv::Matx44d >& featuresFrames);
+
+void viewPointCloudNormalsFramesNeighborhoodAndGravity(const std::vector< std::vector< cv::Vec3d > >& neighborhoodsVector, std::vector< cv::Vec3d >& normals, const std::vector< cv::Scalar >& colors, std::vector< cv::Matx44d >& featuresFrames, cv::Vec3d &gravity);
 
 void car2sph(const cv::Vec3d &v, double &phi, double &theta);
 void sph2car(const double phi, const double theta, cv::Vec3d &v);

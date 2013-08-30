@@ -178,9 +178,9 @@ void pclVisualizerThread::operator()()
                 viewer_->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "Estimated points");
             }
             viewer_->removePointCloud("normals", 0);
-            viewer_->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (cloud_, normals_, 150, 0.35, "normals");
+            viewer_->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (cloud_, normals_, 350, 0.35, "normals");
             viewer_->removePointCloud("estimated normals", 0);
-            viewer_->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (all_estimated_cloud_, all_estimated_normals_, 150, 0.35, "estimated normals");
+            viewer_->addPointCloudNormals<pcl::PointXYZRGB, pcl::Normal> (all_estimated_cloud_, all_estimated_normals_, 350, 0.35, "estimated normals");
             (*update_) = false;
         }
         updateLock.unlock();

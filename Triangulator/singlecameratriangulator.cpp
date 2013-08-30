@@ -30,6 +30,10 @@
 
 #include "singlecameratriangulator.h"
 
+#ifndef ROUND_OPTIMIZATION
+#define ROUND_OPTIMIZATION
+#endif
+
 SingleCameraTriangulator::SingleCameraTriangulator(cv::FileStorage &settings)
 {
     /// Setup the parameters
@@ -342,23 +346,29 @@ void SingleCameraTriangulator::extractPixelsContour(const cv::Vec2d &point, std:
     {
         for(int j = -pixels_ray_; j <= pixels_ray_; j++)
         {
+#ifdef ROUND_OPTIMIZATION
             // If the pixel is inside the circle of ray: ray, take it
             if (i*i + j*j <= pixels_ray_*pixels_ray_)
             {
-                Pixel 
-                    p = {point[0] + i, point[1] + j, 0};
+#endif
                 
-                // TODO: remove magic numbers
-                if (p.x_ < 0 || p.y_ < 0 || p.x_ >= 1024 || p.y_ >= 768)
-                {
-                    // Bad pixel
-                    std::cout << "Bad image 1 pixel: [" << p.x_ << "," << p.y_ << "]" << std::endl;
-                }
-                else
-                {
-                    pixels.push_back(p);
-                }
+            Pixel 
+                p = {point[0] + i, point[1] + j, 0};
+            
+            // TODO: remove magic numbers
+            if (p.x_ < 0 || p.y_ < 0 || p.x_ >= 1024 || p.y_ >= 768)
+            {
+                // Bad pixel
+                std::cout << "Bad image 1 pixel: [" << p.x_ << "," << p.y_ << "]" << std::endl;
             }
+            else
+            {
+                pixels.push_back(p);
+            }
+                
+#ifdef ROUND_OPTIMIZATION
+             }
+#endif
         }
     }
 }
@@ -653,3 +663,106 @@ bool SingleCameraTriangulator::isPixelGood(const Pixel &pixel, const double scal
     }
     return true;
 }
+
+void SingleCameraTriangulator::projectPointsToImage(const IMAGE_ID id, 
+                                                    const std::vector< std::vector< cv::Vec3d > >& pointsGroupVector, 
+                                                    std::vector< cv::Mat >& patchesVector,
+                                                    std::vector< cv::Mat >& imagePointsVector
+                                                   )
+{
+    patchesVector.clear();
+    imagePointsVector.clear();
+    
+    std::vector< std::vector<cv::Vec3d> >::const_iterator 
+        pg_it = pointsGroupVector.begin();
+        
+    int size = sqrt(pg_it->size());
+    /*
+    for (std::size_t i = 0; i < pointsGroupVector.size(); i++)
+    {
+        patchesVector.push_back(patch);
+    }*/
+    
+    int count = 0;
+    while (pg_it != pointsGroupVector.end())
+    {
+        cv::Mat
+            patch = cv::Mat(cv::Size(size, size), CV_8UC1, cv::Scalar(0)),
+            imagePoints;
+        
+        projectPointsToImage(id, (*pg_it), patch, imagePoints);
+        
+        patchesVector.push_back(patch.clone());
+        imagePointsVector.push_back(imagePoints.clone());
+        
+        patch.~Mat();
+        imagePoints.~Mat();
+        pg_it++; count++;
+    }
+    
+    for (int i = 0; i < patchesVector.size(); i++)
+    {
+        cv::imwrite("patch_" + NumberToString<int>(i) + ".pgm", patchesVector[i]);
+    }
+}
+
+void SingleCameraTriangulator::projectPointsToImage(const IMAGE_ID id, 
+                                                    const std::vector< cv::Vec3d >& pointsGroup, 
+                                                    cv::Mat& patch, 
+                                                    cv::Mat& imagePoints
+                                                   )
+{
+    int size = sqrt(pointsGroup.size());
+    
+    cv::Vec3d
+        t, r;
+        
+    cv::Ptr<cv::Mat>
+        img;
+        
+    if (id == image1)
+    {
+        t.zeros();
+        r.zeros();
+        img = img_1_;
+    }
+    else
+    {
+        decomposeTransformation(*g_12_, r, t);
+        img = img_2_;
+    }
+        
+    cv::projectPoints(pointsGroup, r, t, *camera_matrix_, *distortion_coefficients_, imagePoints);
+    
+    cv::Vec2d
+        pixelCoordinates;
+        
+    int row = -1, col = 0;
+    for (std::size_t i = 0; i < imagePoints.rows; i++)
+    {
+        col = i%size;
+        if (0 == col)
+        {
+            row++;
+        }
+        pixelCoordinates = imagePoints.at<cv::Vec2d>(i);
+        
+        Pixel p;
+        
+        p.x_ = pixelCoordinates[0];
+        p.y_ = pixelCoordinates[1];
+        
+        // Check for bad points
+        if (!isPixelGood(p, 1.0))
+        {
+//             std::cout << "bad point:" << pixelCoordinates << std::endl;
+            // The point is outside the image, set it to 0
+            patch.at<uchar>(col, row) = 0;
+        }
+        else
+        {
+            patch.at<uchar>(col, row) = static_cast<uchar>(getBilinearInterpPix32f(*img, pixelCoordinates[0], pixelCoordinates[1]));
+        }
+    }
+}
+

@@ -46,9 +46,13 @@ typedef struct
     float i_;  //> intensity of the pixel
 } Pixel;
 
+
+enum IMAGE_ID{image1,image2};
+
 class SingleCameraTriangulator
 {
 public:
+    
     SingleCameraTriangulator( cv::FileStorage &settings );
 
     void setImages(const cv::Mat& img1, const cv::Mat& img2);
@@ -77,6 +81,11 @@ public:
     
     int updateImage1PixelsIntensity(const double scale, std::vector<Pixel> &pixels );
     
+    void projectPointsToImage(const IMAGE_ID id, 
+                              const std::vector< std::vector< cv::Vec3d > >& pointsGroupVector, 
+                              std::vector< cv::Mat >& patchesVector,
+                              std::vector< cv::Mat >& imagePointsVector
+                             );
 //     int getMdat();
 // Private methods
 private:
@@ -87,6 +96,12 @@ private:
     void projectPointsToImages( const std::vector< cv::Mat >& pointsGroupVector, std::vector< cv::Mat >& imagePointsVector1, std::vector< cv::Mat >& imagePointsVector2 );
     
     void projectPointsToImages( const cv::Mat& pointsGroup, cv::Mat& imagePoints1, cv::Mat& imagePoints2 );
+    
+    void projectPointsToImage(const IMAGE_ID id, 
+                              const std::vector< cv::Vec3d >& pointsGroup, 
+                              cv::Mat& patch, 
+                              cv::Mat& imagePoints
+                             );
     
     void projectPointToPlane( const cv::Vec3d& newPoint, const cv::Vec3d& featurePoint, const cv::Vec3d& normal, cv::Vec3d& pointOnThePlane );
     

@@ -146,16 +146,6 @@ int main(int argc, char **argv) {
     
     no.computeOptimizedNormals(triagulated, normalsVector, colors);
     
-/*DEBUG*/
-// Add fake point and normal for test purpose
-cv::Vec3d fakeP(0,0,0);
-cv::Vec3d fakeN(0,0,-1);
-cv::Scalar fakeC(255,255,255);
-triagulated.push_back(fakeP);
-normalsVector.push_back(fakeN);
-colors.push_back(fakeC);
-/*DEBUG*/
-    
     std::vector<cv::Matx44d>
         featuresFrames;
         
@@ -167,9 +157,23 @@ colors.push_back(fakeC);
     ng(fs);
     
     std::vector< std::vector<cv::Vec3d> >
-    neighborhoodsVector;
+        neighborhoodsVector;
     
     ng.computeSquareNeighborhoodsByNormals(featuresFrames, neighborhoodsVector);
+    
+    std::vector< cv::Mat >
+        patchesVector,
+        imagePointsVector;
+        
+    sct.setImages(img1,img2);
+    sct.projectPointsToImage(image1, neighborhoodsVector, patchesVector, imagePointsVector);
+    
+    // Draw the patches and save the image
+    cv::Mat
+        img1_points;
+    drawBackProjectedPoints(img1, img1_points, imagePointsVector, colors);
+    
+    cv::imwrite("projectedPatches.pgm", img1_points);
     
     ////////////////////////////
     // Converto i punti in point cloud e visualizzo la cloud
@@ -186,9 +190,13 @@ colors.push_back(fakeC);
     }
     no.stopVisualizerThread();
     
-    viewPointCloudNormalsAndFrames(triagulated, normalsCloud, colors, featuresFrames);
+//     viewPointCloudNormalsAndFrames(triagulated, normalsCloud, colors, featuresFrames);
     
 //     viewPointCloudNormalsFramesAndNeighborhood(neighborhoodsVector, normalsVector, colors, featuresFrames);
+    
+    cv::Vec3d gravity(no.getGravity());
+    
+    viewPointCloudNormalsFramesNeighborhoodAndGravity(neighborhoodsVector, normalsVector, colors, featuresFrames, gravity);
     
     return 0;
 }

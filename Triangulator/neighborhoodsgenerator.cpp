@@ -110,8 +110,8 @@ void NeighborhoodsGenerator::computeSquareNeighborhoodByNormal(const cv::Matx44d
     {
         for (int j = 0; j < numberOfPointsPerEdge; j++)
         {
-            pointH[0] = -epsilon_ + increment * j;
-            pointH[1] = -epsilon_ + increment * i;
+            pointH[0] = -epsilon_ + increment * i;
+            pointH[1] = -epsilon_ + increment * j;
             pointH[2] = 0;
             pointH[3] = 1;
             

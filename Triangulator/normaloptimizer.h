@@ -56,6 +56,8 @@ public:
     
     void stopVisualizerThread();
     
+    cv::Vec3d getGravity();
+    
 // private methods
 private:
     NormalOptimizer(); // Avoid default constructor

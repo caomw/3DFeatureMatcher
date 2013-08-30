@@ -4,19 +4,19 @@ NNDR:
 
 Neighborhoods:
    #Part for normal optimization: take pixels in the image
-   epsilonLMMIN: 1e-8
-   pixelsRay: 32
-   pyramids: 3
+   epsilonLMMIN: 1e-10
+   pixelsRay: 64
+   pyramids: 4
 
    #Part for patch extraction: take points on the plane
    #square or circular
    method: square
    
    #1cm per pixel
-   cmPerPixel: 0.5
+   cmPerPixel: 0.25
    
    #in meters -> 1cm per pixel!
-   epsilon: 0.32
+   epsilon: 0.16
 
    #These only for circular neighborhood
    #thetas: 15
