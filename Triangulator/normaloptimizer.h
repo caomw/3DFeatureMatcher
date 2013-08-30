@@ -81,8 +81,8 @@ private:
     SingleCameraTriangulator
         *sct_;
         
-    cv::Vec3d
-        *gravity_;
+    cv::Ptr< const cv::Vec3d >
+        gravity_;
         
     /*LMMIN parameters*/
     double

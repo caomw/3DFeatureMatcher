@@ -171,9 +171,9 @@ NormalOptimizer::NormalOptimizer(const cv::FileStorage settings, SingleCameraTri
     cv::Rodrigues(rodriguesIC, rotation_IC);
     
     // TODO: gravity set to y axes, check if it is correct
-    gravity_ = new cv::Vec3d(0,0,-1);
-    
-    *gravity_ = rotation_IC.inv() * (*gravity_);
+    cv::Vec3d temp(0,0,-1);
+    temp = rotation_IC.inv() * (temp);
+    gravity_ = new const cv::Vec3d(temp);
     
     std::cout << "Gravity: " << *gravity_ << std::endl;
     
@@ -332,7 +332,7 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
         img2_patches = pyr_img_2_[0].clone();
     
     int index = 0;
-    for (std::vector<cv::Vec3d>::iterator actualPointIT = points3D.begin(); actualPointIT != points3D.end(); /*actualPointIT++*/)
+    for (std::vector<cv::Vec3d>::iterator actualPointIT = points3D.begin(); actualPointIT != points3D.end();/* actualPointIT++*/)
     {
         /*DEBUG*/
         std::cout << "Punto su cui sto lavorando: " << index << std::endl;
@@ -341,6 +341,12 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
         // get the point and compute the initial guess for the normal
         actual_point_ = new cv::Vec3d((*actualPointIT));
         actual_norm_ = new cv::Vec3d((*actual_point_) / cv::norm(*actual_point_));
+        
+        double theta, phi, angle;
+        angle = atan2((*actual_norm_)[2], (*actual_norm_)[1]) * 180 / M_PI;
+        car2sph(*actual_norm_, phi, theta);
+        
+//         std::cout << *actual_norm_ << " - [" << phi * 180 / M_PI << ", " << theta * 180 / M_PI << "] - (" << angle << ")" << std::endl;
 
         // Get the neighborhood of the feature point pixel
         sct_->extractPixelsContour((*actual_point_), image_1_points_);
@@ -354,75 +360,92 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
         // Set mdat for actual point
         m_dat_ = image_1_points_.size();
         
+        
+        if ( 0 >= m_dat_ )
+        {
+            points3D.erase(actualPointIT);
+            std::cout << "Not enough pixels!" << std::endl;
+            continue;
+        }
+        
         // Set the color for the visualizer
         color_ = new cv::Scalar(colors[index++]);
         
-        if ( 0 < m_dat_ )
+        if ( angle < 105 )
         {
             if (!optimize_pyramid())
             {
                 points3D.erase(actualPointIT);
                 std::cout << "Bad point!" << std::endl;
+                
+                continue;
             }
-            else
-            {
 #ifdef ENABLE_VISUALIZER_
-                visualizer_->keepLastCloud();
+            visualizer_->keepLastCloud();
 #endif
-      
-                
-                //// CODE TO DRAW image 1
-                for( std::vector<Pixel>::iterator it = image_1_points_.begin(); it != image_1_points_.end(); it++)
-                {
-//                     cv::Vec3b pixel_color(color_[0], color_[1], color_[2]);
-                    
-                    cv::Point2d
-                        point ((*it).x_, (*it).y_);
-                    
-                    cv::Point2i
-                        pixel(round(point.x),round(point.y));
-                        
-                    img1_patches.at<cv::Vec3b>(pixel)[0] = (*color_)[0];
-                    img1_patches.at<cv::Vec3b>(pixel)[1] = (*color_)[1];
-                    img1_patches.at<cv::Vec3b>(pixel)[2] = (*color_)[2];
-                }
-                cv::imwrite("image1pixels.pgm", img1_patches);
-                
-                //// CODE TO DRAW image 2
-                std::vector<cv::Vec3d>
-                    pointGroup;
-                std::vector<Pixel>
-                    imagePoints2;
-                
-                // obtain 3D points
-                sct_->get3dPointsFromImage1Pixels(*actual_point_, *actual_norm_, *image_1_points_MAT_, pointGroup);
-                
-                sct_->projectPointsToImage2(pointGroup, 1.0, imagePoints2);
-                for( std::vector<Pixel>::iterator it = imagePoints2.begin(); it != imagePoints2.end(); it++)
-                {
-//                     cv::Vec3b pixel_color(color_[0], color_[1], color_[2]);
-                    
-                    cv::Point2d
-                        point ((*it).x_, (*it).y_);
-                    
-                    cv::Point2i
-                        pixel(round(point.x),round(point.y));
-                        
-                    img2_patches.at<cv::Vec3b>(pixel)[0] = (*color_)[0];
-                    img2_patches.at<cv::Vec3b>(pixel)[1] = (*color_)[1];
-                    img2_patches.at<cv::Vec3b>(pixel)[2] = (*color_)[2];
-                }
-                cv::imwrite("image2pixels.pgm", img2_patches);
-                
-                normalsVector.push_back((*actual_norm_));
-                actualPointIT++;
-            }
         }
         else
         {
-            points3D.erase(actualPointIT);
-            std::cout << "Not enough pixels!" << std::endl;
+            (*actual_norm_)[0] = (*gravity_)[0];
+            (*actual_norm_)[1] = (*gravity_)[1];
+            (*actual_norm_)[2] = (*gravity_)[2];
+            
+            std::vector<cv::Vec3d>
+                pointGroup;
+            sct_->get3dPointsFromImage1Pixels(*actual_point_, *actual_norm_, *image_1_points_MAT_, pointGroup);
+#ifdef ENABLE_VISUALIZER_
+            visualizer_->updateClouds(pointGroup, *actual_norm_, *color_);
+            visualizer_->keepLastCloud();
+#endif
         }
+        
+        /// Here I can draw images
+
+//                 //// CODE TO DRAW image 1
+//                 for( std::vector<Pixel>::iterator it = image_1_points_.begin(); it != image_1_points_.end(); it++)
+//                 {
+// //                     cv::Vec3b pixel_color(color_[0], color_[1], color_[2]);
+//                     
+//                     cv::Point2d
+//                         point ((*it).x_, (*it).y_);
+//                     
+//                     cv::Point2i
+//                         pixel(round(point.x),round(point.y));
+//                         
+//                     img1_patches.at<cv::Vec3b>(pixel)[0] = (*color_)[0];
+//                     img1_patches.at<cv::Vec3b>(pixel)[1] = (*color_)[1];
+//                     img1_patches.at<cv::Vec3b>(pixel)[2] = (*color_)[2];
+//                 }
+//                 cv::imwrite("image1pixels.pgm", img1_patches);
+
+//                 //// CODE TO DRAW image 2
+//                 std::vector<cv::Vec3d>
+//                     pointGroup;
+//                 std::vector<Pixel>
+//                     imagePoints2;
+//                 
+//                 // obtain 3D points
+//                 sct_->get3dPointsFromImage1Pixels(*actual_point_, *actual_norm_, *image_1_points_MAT_, pointGroup);
+//                 
+//                 sct_->projectPointsToImage2(pointGroup, 1.0, imagePoints2);
+//                 for( std::vector<Pixel>::iterator it = imagePoints2.begin(); it != imagePoints2.end(); it++)
+//                 {
+// //                     cv::Vec3b pixel_color(color_[0], color_[1], color_[2]);
+//                     
+//                     cv::Point2d
+//                         point ((*it).x_, (*it).y_);
+//                     
+//                     cv::Point2i
+//                         pixel(round(point.x),round(point.y));
+//                         
+//                     img2_patches.at<cv::Vec3b>(pixel)[0] = (*color_)[0];
+//                     img2_patches.at<cv::Vec3b>(pixel)[1] = (*color_)[1];
+//                     img2_patches.at<cv::Vec3b>(pixel)[2] = (*color_)[2];
+//                 }
+//                 cv::imwrite("image2pixels.pgm", img2_patches);
+        
+        normalsVector.push_back((*actual_norm_));
+        actualPointIT++;
     }
     
     std::cout << points3D.size() << " - " << normalsVector.size() << std::endl;

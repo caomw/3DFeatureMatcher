@@ -764,15 +764,14 @@ void viewPointCloudNormalsFramesNeighborhoodAndGravity(const std::vector< std::v
     
 }
 
-
 void car2sph(const cv::Vec3d &v, double &phi, double &theta)
 {
-    theta = acos( v[2] );
+    theta = atan2( v[2], sqrt(v[0]*v[0] + v[1]*v[1]));
     phi   = atan2( v[1], v[0] );
 }
 void sph2car(const double phi, const double theta, cv::Vec3d &v)
 {
-    v[0] = sin( theta ) * cos( phi );
-    v[1] = sin( theta ) * sin( phi );
-    v[2] = cos( theta );
+    v[0] = cos( theta ) * cos( phi );
+    v[1] = cos( theta ) * sin( phi );
+    v[2] = sin( theta );
 }
