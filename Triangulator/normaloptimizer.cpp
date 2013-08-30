@@ -27,6 +27,8 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+///TODO: remove elevation(theta) parameter and use only the azimuth
+
 #include "normaloptimizer.h"
 
 #define THETA_INDEX 1
