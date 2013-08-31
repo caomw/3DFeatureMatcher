@@ -62,6 +62,7 @@ typedef struct {
     
 } lmminDataStruct;
 
+
 // Function that evaluate fvec of lmmin
 void evaluateNormal( const double *par, int m_dat,
                      const void *data, double *fvec,
@@ -179,6 +180,30 @@ NormalOptimizer::NormalOptimizer(const cv::FileStorage settings, SingleCameraTri
     visualizer_ = new pclVisualizerThread();
 #endif
 }
+
+typedef struct {
+    
+    SingleCameraTriangulator 
+    *sct;
+    cv::Vec3d 
+    *point;
+    int 
+    m_dat;
+    double 
+    scale;
+    std::vector<Pixel> 
+    *imagePoints1;
+    cv::Mat
+    *imagePoints1_MAT;
+    pclVisualizerThread
+    *pvt;
+    cv::Scalar
+    *color;
+    
+    double
+    fixedAngle;
+    
+} lmminDataStructAllInOne;
 
 cv::Vec3d NormalOptimizer::getGravity()
 {
@@ -404,6 +429,12 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
     
     std::cout << points3D.size() << " - " << normalsVector.size() << std::endl;
 }
+
+void NormalOptimizer::computeOptimizedNormalsAllInOne(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector, std::vector< cv::Scalar >& colors)
+{
+
+}
+
 
 void NormalOptimizer::computeFeaturesFrames(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector, std::vector< cv::Matx44d >& featuresFrames)
 {

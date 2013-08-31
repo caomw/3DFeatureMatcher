@@ -50,6 +50,8 @@ public:
     void computeOptimizedNormals(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector);
     void computeOptimizedNormals(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector, std::vector<cv::Scalar> &colors);
     
+    void computeOptimizedNormalsAllInOne(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector, std::vector<cv::Scalar> &colors);
+    
     void computeFeaturesFrames(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector, std::vector<cv::Matx44d> &featuresFrames);
     
     void startVisualizerThread();
