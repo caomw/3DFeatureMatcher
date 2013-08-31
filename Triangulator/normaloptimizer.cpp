@@ -474,13 +474,23 @@ void NormalOptimizer::computeFeaturesFrames(std::vector< cv::Vec3d >& points3D, 
     {
         // z is set equal to the normal
         z = (*nr);
-        // x is perpendicular to the plane defined by the gravity and z
-        x = gravity_->cross(z) /*/ cv::norm(gravity_->cross(z))*/;
+        
+        if (*gravity_ != z)
+        {
+            // x is perpendicular to the plane defined by the gravity and z
+            x = gravity_->cross(z) /*/ cv::norm(gravity_->cross(z))*/;
+        }
+        else
+        {
+            x = cv::Vec3d(0,0,1).cross(z);
+        }
         // y is perpendicular to the plane z-x
         y = z.cross(x) /*/ cv::norm(z.cross(x))*/;
         
         cv::normalize(x,x);
         cv::normalize(y,y);
+        
+        std::cout << x << " - " << y << " - " << z << std::endl;
         
         // put the basis as columns in the matrix
         actualFrame(0,0) = e1.dot(x); actualFrame(0,1) = e1.dot(y); actualFrame(0,2) = e1.dot(z); actualFrame(0,3) = (*pt)[0];
