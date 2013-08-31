@@ -677,11 +677,6 @@ void SingleCameraTriangulator::projectPointsToImage(const IMAGE_ID id,
         pg_it = pointsGroupVector.begin();
         
     int size = sqrt(pg_it->size());
-    /*
-    for (std::size_t i = 0; i < pointsGroupVector.size(); i++)
-    {
-        patchesVector.push_back(patch);
-    }*/
     
     int count = 0;
     while (pg_it != pointsGroupVector.end())
@@ -702,7 +697,7 @@ void SingleCameraTriangulator::projectPointsToImage(const IMAGE_ID id,
     
     for (int i = 0; i < patchesVector.size(); i++)
     {
-        cv::imwrite("patch_" + NumberToString<int>(i) + ".pgm", patchesVector[i]);
+        cv::imwrite("img" + NumberToString<int>(((int) id) + 1) + "patch_" + NumberToString<int>(i) + ".pgm", patchesVector[i]);
     }
 }
 

@@ -5,8 +5,8 @@ NNDR:
 Neighborhoods:
    #Part for normal optimization: take pixels in the image
    epsilonLMMIN: 1e-10
-   pixelsRay: 64
-   pyramids: 4
+   pixelsRay: 32
+   pyramids: 3
 
    #Part for patch extraction: take points on the plane
    #square or circular

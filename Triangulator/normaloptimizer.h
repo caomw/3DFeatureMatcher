@@ -103,6 +103,9 @@ private:
         
     cv::Mat
         *image_1_points_MAT_;
+        
+    double
+        fixed_angle_; //for wall features
     /*LMMIN parameters*/
     
     boost::thread 

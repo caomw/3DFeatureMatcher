@@ -58,8 +58,7 @@ typedef struct {
         *color;
         
     double
-        thetaInitialGuess,
-        phiInitialGuess;
+        fixedAngle;
     
 } lmminDataStruct;
 
@@ -74,10 +73,9 @@ void evaluateNormal( const double *par, int m_dat,
         normal;
     
     double
-        phi = par[PHI_INDEX],
-        theta = par[THETA_INDEX];
+        variableAngle = par[0];
     
-    sph2car(phi, theta, normal);
+    sph2car(D->fixedAngle, variableAngle, normal);
     
     // lmmin can go over 1 for normal coordinate, which is wrong for a normal versor.
     if (isnan(normal[2]) || isnan(normal[1]) || isnan(normal[0]))
@@ -126,22 +124,14 @@ void evaluateNormal( const double *par, int m_dat,
     
     // Compute weight
     double 
-        w_theta = 1.0,
-        w_phi = 1.0,
-        w;
+        w = 1.0;
         
-    // theta must lie in [-M_PI, M_PI]
-    // phi must lie in [-M_PI/2, M_PI/2]
-    if (abs(theta) - M_PI/2 > 0 || abs(phi) - M_PI > 0)
+    if (abs(variableAngle) - M_PI > 0)
     {
-        w_theta = exp(abs(theta) - M_PI/2) + 1;
-        std::cout << "--" << w_theta;
+        w = exp(abs(variableAngle) - M_PI) + 1;
         
-        w_phi = exp(abs(phi) - M_PI + 1) + 1;
-        std::cout << "," << w_phi;
+        std::cout << "--" << w;
     }
-    
-    w = w_phi * w_theta;
     
     // compute residuals
     for (std::size_t i = 0; i < m_dat; i++)
@@ -177,7 +167,13 @@ NormalOptimizer::NormalOptimizer(const cv::FileStorage settings, SingleCameraTri
     temp = rotation_IC.inv() * (temp);
     gravity_ = new const cv::Vec3d(temp);
     
-    std::cout << "Gravity: " << *gravity_ << std::endl;
+    double az, el;
+    
+    car2sph(*gravity_, az, el);
+    
+    std::cout << "Gravity: " << *gravity_ << "; [" << az << "," << el << "]" << std::endl;
+    
+    fixed_angle_ = az + M_PI / 2;
     
 #ifdef ENABLE_VISUALIZER_
     visualizer_ = new pclVisualizerThread();
@@ -250,22 +246,23 @@ bool NormalOptimizer::optimize(const int pyrLevel)
 {
     // convert the normal to spherical coordinates
     double 
-        theta, phi;
+        angle, tmp;
     
-    car2sph((*actual_norm_), phi, theta);
+    car2sph((*actual_norm_), tmp, angle);
     
     /* parameter vector */
     int 
-        n_par = 2;  // number of parameters in evaluateNormal
+        n_par = 1;  // number of parameters in evaluateNormal
+        
     double 
-        par[2];
-    par[PHI_INDEX] = phi;
-    par[THETA_INDEX] = theta;
+        par[1];
+        
+    par[0] = angle;
         
     sct_->setImages(pyr_img_1_[pyrLevel],pyr_img_2_[pyrLevel]);
     
     lmminDataStruct
-        data = { sct_, actual_point_, m_dat_, actual_scale_, &image_1_points_, image_1_points_MAT_, visualizer_, color_, theta, phi };
+        data = { sct_, actual_point_, m_dat_, actual_scale_, &image_1_points_, image_1_points_MAT_, visualizer_, color_, fixed_angle_ };
         
     /* auxiliary parameters */
     lm_status_struct 
@@ -288,7 +285,7 @@ bool NormalOptimizer::optimize(const int pyrLevel)
         return false;
     }
     
-    sph2car(par[PHI_INDEX], par[THETA_INDEX], (*actual_norm_));
+    sph2car(fixed_angle_, par[0], (*actual_norm_));
     
     return true;
 }
@@ -323,7 +320,7 @@ void NormalOptimizer::stopVisualizerThread()
 void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, std::vector< cv::Vec3d >& normalsVector, std::vector<cv::Scalar> &colors)
 {
     
-    /// TODO: Move these images as class parameters -> use pyr[0]
+    /// TODO: change these images strings with class parameters -> use pyr[0]
 //     cv::Mat 
 //         img1_patches = cv::imread("/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000750.pgm", CV_LOAD_IMAGE_COLOR);
 //     cv::Mat 
@@ -348,7 +345,7 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
         angle = atan2((*actual_norm_)[2], (*actual_norm_)[1]) * 180 / M_PI;
         car2sph(*actual_norm_, phi, theta);
         
-//         std::cout << *actual_norm_ << " - [" << phi * 180 / M_PI << ", " << theta * 180 / M_PI << "] - (" << angle << ")" << std::endl;
+//         std::cout << *actual_norm_ << " - [" << theta << ", " << theta * 180 / M_PI << "] - (" << angle << ")" << std::endl;
 
         // Get the neighborhood of the feature point pixel
         sct_->extractPixelsContour((*actual_point_), image_1_points_);
@@ -401,51 +398,6 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
 #endif
         }
         
-        /// Here I can draw images
-
-//                 //// CODE TO DRAW image 1
-//                 for( std::vector<Pixel>::iterator it = image_1_points_.begin(); it != image_1_points_.end(); it++)
-//                 {
-// //                     cv::Vec3b pixel_color(color_[0], color_[1], color_[2]);
-//                     
-//                     cv::Point2d
-//                         point ((*it).x_, (*it).y_);
-//                     
-//                     cv::Point2i
-//                         pixel(round(point.x),round(point.y));
-//                         
-//                     img1_patches.at<cv::Vec3b>(pixel)[0] = (*color_)[0];
-//                     img1_patches.at<cv::Vec3b>(pixel)[1] = (*color_)[1];
-//                     img1_patches.at<cv::Vec3b>(pixel)[2] = (*color_)[2];
-//                 }
-//                 cv::imwrite("image1pixels.pgm", img1_patches);
-
-//                 //// CODE TO DRAW image 2
-//                 std::vector<cv::Vec3d>
-//                     pointGroup;
-//                 std::vector<Pixel>
-//                     imagePoints2;
-//                 
-//                 // obtain 3D points
-//                 sct_->get3dPointsFromImage1Pixels(*actual_point_, *actual_norm_, *image_1_points_MAT_, pointGroup);
-//                 
-//                 sct_->projectPointsToImage2(pointGroup, 1.0, imagePoints2);
-//                 for( std::vector<Pixel>::iterator it = imagePoints2.begin(); it != imagePoints2.end(); it++)
-//                 {
-// //                     cv::Vec3b pixel_color(color_[0], color_[1], color_[2]);
-//                     
-//                     cv::Point2d
-//                         point ((*it).x_, (*it).y_);
-//                     
-//                     cv::Point2i
-//                         pixel(round(point.x),round(point.y));
-//                         
-//                     img2_patches.at<cv::Vec3b>(pixel)[0] = (*color_)[0];
-//                     img2_patches.at<cv::Vec3b>(pixel)[1] = (*color_)[1];
-//                     img2_patches.at<cv::Vec3b>(pixel)[2] = (*color_)[2];
-//                 }
-//                 cv::imwrite("image2pixels.pgm", img2_patches);
-        
         normalsVector.push_back((*actual_norm_));
         actualPointIT++;
     }
@@ -489,8 +441,6 @@ void NormalOptimizer::computeFeaturesFrames(std::vector< cv::Vec3d >& points3D, 
         
         cv::normalize(x,x);
         cv::normalize(y,y);
-        
-        std::cout << x << " - " << y << " - " << z << std::endl;
         
         // put the basis as columns in the matrix
         actualFrame(0,0) = e1.dot(x); actualFrame(0,1) = e1.dot(y); actualFrame(0,2) = e1.dot(z); actualFrame(0,3) = (*pt)[0];

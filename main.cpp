@@ -162,18 +162,27 @@ int main(int argc, char **argv) {
     ng.computeSquareNeighborhoodsByNormals(featuresFrames, neighborhoodsVector);
     
     std::vector< cv::Mat >
-        patchesVector,
-        imagePointsVector;
+        patchesVector1,
+        patchesVector2,
+        imagePointsVector1,
+        imagePointsVector2;
         
     sct.setImages(img1,img2);
-    sct.projectPointsToImage(image1, neighborhoodsVector, patchesVector, imagePointsVector);
+    sct.projectPointsToImage(image1, neighborhoodsVector, patchesVector1, imagePointsVector1);
+    sct.projectPointsToImage(image2, neighborhoodsVector, patchesVector2, imagePointsVector2);
     
     // Draw the patches and save the image
     cv::Mat
         img1_points;
-    drawBackProjectedPoints(img1, img1_points, imagePointsVector, colors);
+    drawBackProjectedPoints(img1, img1_points, imagePointsVector1, colors);
     
-    cv::imwrite("projectedPatches.pgm", img1_points);
+    cv::imwrite("img1projectedPatches.pgm", img1_points);
+    
+    cv::Mat
+        img2_points;
+    drawBackProjectedPoints(img2, img2_points, imagePointsVector2, colors);
+    
+    cv::imwrite("img2projectedPatches.pgm", img1_points);
     
     ////////////////////////////
     // Converto i punti in point cloud e visualizzo la cloud
@@ -189,10 +198,6 @@ int main(int argc, char **argv) {
         normalsCloud->points.push_back(normal);
     }
     no.stopVisualizerThread();
-    
-//     viewPointCloudNormalsAndFrames(triagulated, normalsCloud, colors, featuresFrames);
-    
-//     viewPointCloudNormalsFramesAndNeighborhood(neighborhoodsVector, normalsVector, colors, featuresFrames);
     
     cv::Vec3d gravity(no.getGravity());
     
