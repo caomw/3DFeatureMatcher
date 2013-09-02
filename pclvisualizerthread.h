@@ -44,7 +44,9 @@ public:
     
     void operator()();
     
-    void updateClouds(const std::vector< cv::Vec3d >& pointsGroup, const cv::Vec3d& normal, const cv::Scalar &color);
+    void updateClouds(const std::vector< cv::Vec3d >& pointsVector, const cv::Vec3d& normal, const cv::Scalar &color);
+    
+    void updateClouds(const std::vector< std::vector<cv::Vec3d> > &pointsGroupVector, const std::vector<cv::Vec3d> &normalVector, const std::vector<cv::Scalar> &color);
     
     void keepLastCloud();
     

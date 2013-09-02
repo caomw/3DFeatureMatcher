@@ -144,7 +144,15 @@ int main(int argc, char **argv) {
     
     no.startVisualizerThread();
     
-    no.computeOptimizedNormals(triagulated, normalsVector, colors);
+    no.computeOptimizedNormalsAllInOne(triagulated, normalsVector, colors);
+    
+    std::cout << "Normals computed." << std::endl;
+    
+    for (std::vector<cv::Vec3d>::iterator it = normalsVector.begin(); it != normalsVector.end(); it++)
+    {
+        std::cout << (*it) << std::endl;
+    }
+    
     
     std::vector<cv::Matx44d>
         featuresFrames;
@@ -154,7 +162,7 @@ int main(int argc, char **argv) {
     ////////////////////////////
     // Compute neighborhoods
     NeighborhoodsGenerator
-    ng(fs);
+        ng(fs);
     
     std::vector< std::vector<cv::Vec3d> >
         neighborhoodsVector;

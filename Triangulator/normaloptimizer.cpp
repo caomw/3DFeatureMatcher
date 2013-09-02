@@ -31,6 +31,8 @@
 
 #include "normaloptimizer.h"
 
+#include <limits>
+
 #define THETA_INDEX 1
 #define PHI_INDEX 0
 
@@ -38,107 +40,153 @@
 #define ENABLE_VISUALIZER_
 #endif
 
-typedef struct {
-    
-    SingleCameraTriangulator 
-        *sct;
-    cv::Vec3d 
-        *point;
+void manageBadData(int *fvecIndex, lmminDataStruct *data, double *fvec)
+{
+    // compute residuals
     int 
-        m_dat;
-    double 
-        scale;
-    std::vector<Pixel> 
-        *imagePoints1;
-    cv::Mat
-        *imagePoints1_MAT;
-    pclVisualizerThread
-        *pvt;
-    cv::Scalar
-        *color;
-        
-    double
-        fixedAngle;
-    
-} lmminDataStruct;
-
+        start = *fvecIndex, 
+        end = *fvecIndex + data->m_dat - 1;
+    for (std::size_t i = start; i < end; i++)
+    {
+        fvec[i] = 0; // max difference from black (0) and white (255)
+    }
+    *fvecIndex = *fvecIndex + data->m_dat;
+}
 
 // Function that evaluate fvec of lmmin
 void evaluateNormal( const double *par, int m_dat,
                      const void *data, double *fvec,
                      int *info )
 {
-    lmminDataStruct 
-        *D = (lmminDataStruct*) data;
-    cv::Vec3d 
-        normal;
-    
-    double
-        variableAngle = par[0];
-    
-    sph2car(D->fixedAngle, variableAngle, normal);
-    
-    // lmmin can go over 1 for normal coordinate, which is wrong for a normal versor.
-    if (isnan(normal[2]) || isnan(normal[1]) || isnan(normal[0]))
-    {
-        (*info) = -1;
-        return;
-    }
-    
-    std::vector<cv::Vec3d>
-        pointGroup;
-    std::vector<Pixel>
-        imagePoints2;
+    std::vector<lmminDataStruct> 
+        *dataVector = (std::vector<lmminDataStruct> *) data;
+        
+    std::vector<lmminDataStruct>::iterator 
+        dataIT;
     int 
-        goodNormal = 0;
-    
-    // obtain 3D points
-    goodNormal += D->sct->get3dPointsFromImage1Pixels(*(D->point), normal, *(D->imagePoints1_MAT), pointGroup);
-    
-    if (0 != goodNormal)
+        index,
+        fvecIndex = 0;
+        
+#ifdef ENABLE_VISUALIZER_
+    std::vector< std::vector<cv::Vec3d> > 
+        pointGroupVector;
+    std::vector<cv::Vec3d> 
+        normalVector;
+    std::vector<cv::Scalar> 
+        colorVector;
+#endif
+        
+    for (dataIT = dataVector->begin(), index = 0; dataIT != dataVector->end(); dataIT++, index += 2)
     {
-        (*info) = -1;
-        return;
-    }
+        if (!(dataIT->isGood))
+        {
+            // Put zero residuals
+            manageBadData(&fvecIndex, &*dataIT, fvec);
+            colorVector.push_back(cv::Scalar(0,0,0));
+            normalVector.push_back(cv::Vec3d(0,0,0));
+            pointGroupVector.push_back(std::vector<cv::Vec3d>());
+            continue;
+        }
+        
+        double
+            phi = par[index],
+            theta = par[index + 1];
+            
+        cv::Vec3d
+            normal;
+        
+        sph2car(phi, theta, normal);
+        
+        std::vector<cv::Vec3d>
+            pointGroup;
+        std::vector<Pixel>
+            imagePoints2;
+        int 
+            goodNormal = 0;
+        
+        // obtain 3D points
+        goodNormal += dataIT->sct->get3dPointsFromImage1Pixels(*(dataIT->point), normal, *(dataIT->imagePoints1_MAT), pointGroup);
+        
+//         #ifdef ENABLE_VISUALIZER_
+//         dataIT->pvt->updateClouds(pointGroup, normal, *(dataIT->color));
+//         #endif
+        
+        if (0 != goodNormal)
+        {
+            dataIT->isGood = false;
+            // Put zero residuals
+            manageBadData(&fvecIndex, &*dataIT, fvec);
+            colorVector.push_back(cv::Scalar(0,0,0));
+            normalVector.push_back(cv::Vec3d(0,0,0));
+            pointGroupVector.push_back(std::vector<cv::Vec3d>());
+            continue;
+        }
+        
+        // update imagePoints1 to actual scale pixels intensity
+        goodNormal += dataIT->sct->updateImage1PixelsIntensity(dataIT->scale, *(dataIT->imagePoints1));
+        
+        if (0 != goodNormal)
+        {
+            dataIT->isGood = false;
+            // Put zero residuals
+            manageBadData(&fvecIndex, &*dataIT, fvec);
+            colorVector.push_back(cv::Scalar(0,0,0));
+            normalVector.push_back(cv::Vec3d(0,0,0));
+            pointGroupVector.push_back(std::vector<cv::Vec3d>());
+            continue;
+        }
+        
+        // get imagePoints2 at actual scale
+        goodNormal += dataIT->sct->projectPointsToImage2(pointGroup, dataIT->scale, imagePoints2);
+        
+        if (0 != goodNormal)
+        {
+            dataIT->isGood = false;
+            // Put zero residuals
+            manageBadData(&fvecIndex, &*dataIT, fvec);
+            colorVector.push_back(cv::Scalar(0,0,0));
+            normalVector.push_back(cv::Vec3d(0,0,0));
+            pointGroupVector.push_back(std::vector<cv::Vec3d>());
+            continue;
+        }
+        
+#ifdef ENABLE_VISUALIZER_
+        // For viz
+        colorVector.push_back(*(dataIT->color));
+        normalVector.push_back(normal);
+        pointGroupVector.push_back(pointGroup);
+#endif
 
-    // update imagePoints1 to actual scale pixels intensity
-    goodNormal += D->sct->updateImage1PixelsIntensity(D->scale, *(D->imagePoints1));
-    
-    if (0 != goodNormal)
-    {
-        (*info) = -1;
-        return;
-    }
-    
-    // get imagePoints2 at actual scale
-    goodNormal += D->sct->projectPointsToImage2(pointGroup, D->scale, imagePoints2);
-    
-    if (0 != goodNormal)
-    {
-        (*info) = -1;
-        return;
+        // Compute weight
+        double 
+            w_theta = 1.0,
+            w_phi = 1.0,
+            w;
+
+        // theta must lie in [-M_PI, M_PI]
+        // phi must lie in [-M_PI/2, M_PI/2]
+        if (abs(theta) - M_PI/2 > 0 || abs(phi) - M_PI > 0)
+        {
+            w_theta = exp(abs(theta) - M_PI/2) + 1;
+            std::cout << "--" << w_theta;
+            
+            w_phi = exp(abs(phi) - M_PI + 1) + 1;
+            std::cout << "," << w_phi;
+        }
+
+        w = w_phi * w_theta;
+        
+        // compute residuals
+        for (std::size_t i = 0; i < dataIT->m_dat; i++)
+        {
+            fvec[fvecIndex++] = w * (dataIT->imagePoints1->at(i).i_ - imagePoints2.at(i).i_);
+        }
     }
     
 #ifdef ENABLE_VISUALIZER_
-    D->pvt->updateClouds(pointGroup, normal, *(D->color));
+    dataIT = dataVector->begin();
+    dataIT->pvt->updateClouds(pointGroupVector, normalVector, colorVector);
 #endif
-    
-    // Compute weight
-    double 
-        w = 1.0;
-        
-    if (abs(variableAngle) - M_PI > 0)
-    {
-        w = exp(abs(variableAngle) - M_PI) + 1;
-        
-        std::cout << "--" << w;
-    }
-    
-    // compute residuals
-    for (std::size_t i = 0; i < m_dat; i++)
-    {
-        fvec[i] = w * (D->imagePoints1->at(i).i_ - imagePoints2.at(i).i_);
-    }
 }
 
 NormalOptimizer::NormalOptimizer(const cv::FileStorage settings, SingleCameraTriangulator *sct)
@@ -181,30 +229,6 @@ NormalOptimizer::NormalOptimizer(const cv::FileStorage settings, SingleCameraTri
 #endif
 }
 
-typedef struct {
-    
-    SingleCameraTriangulator 
-    *sct;
-    cv::Vec3d 
-    *point;
-    int 
-    m_dat;
-    double 
-    scale;
-    std::vector<Pixel> 
-    *imagePoints1;
-    cv::Mat
-    *imagePoints1_MAT;
-    pclVisualizerThread
-    *pvt;
-    cv::Scalar
-    *color;
-    
-    double
-    fixedAngle;
-    
-} lmminDataStructAllInOne;
-
 cv::Vec3d NormalOptimizer::getGravity()
 {
     return *gravity_;
@@ -243,88 +267,6 @@ void NormalOptimizer::compute_pyramids(const cv::Mat& img1, const cv::Mat& img2)
     }
 }
 
-bool NormalOptimizer::optimize_pyramid()
-{
-    float 
-        img_scale = float( pow(2.0,double(pyr_levels_)) );
-        
-    for( int i = pyr_levels_; i >= 0; i--)
-    {
-        actual_scale_ = 1.0/img_scale;
-//         std::cout << "scala: " << actual_scale_ << " Actual normal: " << *actual_norm_;
-        
-        if (!optimize(i))
-        {
-            return false;
-            std::cout << "BAD NORMAL - 3" << std::endl;
-        }
-        
-//         std::cout << " Estimated normal: " << *actual_norm_ << std::endl;
-        
-        img_scale /= 2.0f;
-    }
-    
-    return true;
-}
-
-bool NormalOptimizer::optimize(const int pyrLevel)
-{
-    // convert the normal to spherical coordinates
-    double 
-        angle, tmp;
-    
-    car2sph((*actual_norm_), tmp, angle);
-    
-    /* parameter vector */
-    int 
-        n_par = 1;  // number of parameters in evaluateNormal
-        
-    double 
-        par[1];
-        
-    par[0] = angle;
-        
-    sct_->setImages(pyr_img_1_[pyrLevel],pyr_img_2_[pyrLevel]);
-    
-    lmminDataStruct
-        data = { sct_, actual_point_, m_dat_, actual_scale_, &image_1_points_, image_1_points_MAT_, visualizer_, color_, fixed_angle_ };
-        
-    /* auxiliary parameters */
-    lm_status_struct 
-        status;
-    
-    lm_control_struct 
-        control = lm_control_double;
-    control.epsilon = epsilon_lmmin_;
-    
-    lm_princon_struct 
-        princon = lm_princon_std;
-    princon.flags = 0;
-
-    lmmin( n_par, par, m_dat_, &data, evaluateNormal,
-           lm_printout_std, &control, 0/*&princon*/, &status );
-    
-    /// status.info == 11 -> interrupt for bad points
-    if (status.info == 11)
-    {
-        return false;
-    }
-    
-    sph2car(fixed_angle_, par[0], (*actual_norm_));
-    
-    return true;
-}
-
-void NormalOptimizer::computeOptimizedNormals(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector)
-{
-    std::vector<cv::Scalar> colors;
-    for (std::vector<cv::Vec3d>::iterator actualPointIT = points3D.begin(); actualPointIT != points3D.end(); actualPointIT++)
-    {
-        colors.push_back(cv::Scalar(150,150,255));
-    }
-    computeOptimizedNormals(points3D, normalsVector, colors);
-}
-
 void NormalOptimizer::startVisualizerThread()
 {
 #ifdef ENABLE_VISUALIZER_
@@ -341,100 +283,158 @@ void NormalOptimizer::stopVisualizerThread()
 #endif
 }
 
-
-void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, std::vector< cv::Vec3d >& normalsVector, std::vector<cv::Scalar> &colors)
+void NormalOptimizer::computeOptimizedNormalsAllInOne(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector, std::vector< cv::Scalar >& colors)
 {
-    
-    /// TODO: change these images strings with class parameters -> use pyr[0]
-//     cv::Mat 
-//         img1_patches = cv::imread("/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000750.pgm", CV_LOAD_IMAGE_COLOR);
-//     cv::Mat 
-//         img2_patches = cv::imread("/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000770.pgm", CV_LOAD_IMAGE_COLOR);
-    
-    cv::Mat
-        img1_patches = pyr_img_1_[0].clone(),
-        img2_patches = pyr_img_2_[0].clone();
-    
+    // Prepare data for computation
+    std::vector<lmminDataStruct>
+        optimizationDataVector;
+        
+    std::vector< cv::Mat * >
+        image1MatVector;
+        
+    std::vector< std::vector<Pixel> * >
+        image1PixelVector;
+        
+    std::vector< cv::Vec3d * >
+        tempNormalsVector;
+        
     int index = 0;
     for (std::vector<cv::Vec3d>::iterator actualPointIT = points3D.begin(); actualPointIT != points3D.end();/* actualPointIT++*/)
     {
-        /*DEBUG*/
-        std::cout << "Punto su cui sto lavorando: " << index << std::endl;
-        /*DEBUG*/
+        cv::Vec3d  
+            normal((*actualPointIT) / cv::norm(*actualPointIT));
+        tempNormalsVector.push_back(new cv::Vec3d(normal));
         
-        // get the point and compute the initial guess for the normal
-        actual_point_ = new cv::Vec3d((*actualPointIT));
-        actual_norm_ = new cv::Vec3d((*actual_point_) / cv::norm(*actual_point_));
-        
-        double theta, phi, angle;
-        angle = atan2((*actual_norm_)[2], (*actual_norm_)[1]) * 180 / M_PI;
-        car2sph(*actual_norm_, phi, theta);
-        
-//         std::cout << *actual_norm_ << " - [" << theta << ", " << theta * 180 / M_PI << "] - (" << angle << ")" << std::endl;
-
         // Get the neighborhood of the feature point pixel
-        sct_->extractPixelsContour((*actual_point_), image_1_points_);
+        std::vector<Pixel>
+            image1Pixels;
+        sct_->extractPixelsContour((*actualPointIT), image1Pixels);
+        image1PixelVector.push_back( new std::vector<Pixel>(image1Pixels) );
         
-        image_1_points_MAT_ = new cv::Mat(cv::Size(1, image_1_points_.size()), CV_64FC2, cv::Scalar(0));
-        for (std::size_t i = 0; i < image_1_points_.size(); i++)
+        cv::Mat
+            image1PointsMAT(cv::Size(1, image1Pixels.size()), CV_64FC2, cv::Scalar(0));
+        for (std::size_t i = 0; i < image1Pixels.size(); i++)
         {
-            image_1_points_MAT_->at<cv::Vec2d>(i) = cv::Vec2d(image_1_points_.at(i).x_, image_1_points_.at(i).y_);
+            image1PointsMAT.at<cv::Vec2d>(i) = cv::Vec2d(image1Pixels.at(i).x_, image1Pixels.at(i).y_);
         }
+        image1MatVector.push_back(new cv::Mat(image1PointsMAT));
         
         // Set mdat for actual point
-        m_dat_ = image_1_points_.size();
+        int m_dat = image1Pixels.size();
         
-        
-        if ( 0 >= m_dat_ )
+        if ( 0 >= m_dat )
         {
             points3D.erase(actualPointIT);
             std::cout << "Not enough pixels!" << std::endl;
             continue;
         }
         
-        // Set the color for the visualizer
-        color_ = new cv::Scalar(colors[index++]);
+        lmminDataStruct 
+            actualPointData = { sct_, &*actualPointIT, tempNormalsVector[index], 
+                                m_dat, 0.0, image1PixelVector[index], 
+                                image1MatVector[index], visualizer_, &(colors[index]), true };
         
-        if ( angle < 105 )
-        {
-            if (!optimize_pyramid())
-            {
-                points3D.erase(actualPointIT);
-                std::cout << "Bad point!" << std::endl;
-                
-                continue;
-            }
-#ifdef ENABLE_VISUALIZER_
-            visualizer_->keepLastCloud();
-#endif
-        }
-        else
-        {
-            (*actual_norm_)[0] = (*gravity_)[0];
-            (*actual_norm_)[1] = (*gravity_)[1];
-            (*actual_norm_)[2] = (*gravity_)[2];
-            
-            std::vector<cv::Vec3d>
-                pointGroup;
-            sct_->get3dPointsFromImage1Pixels(*actual_point_, *actual_norm_, *image_1_points_MAT_, pointGroup);
-#ifdef ENABLE_VISUALIZER_
-            visualizer_->updateClouds(pointGroup, *actual_norm_, *color_);
-            visualizer_->keepLastCloud();
-#endif
-        }
-        
-        normalsVector.push_back((*actual_norm_));
+                                
+        std::cout << *(tempNormalsVector[index]) << std::endl;
+                                
+        optimizationDataVector.push_back(actualPointData);
+    
+        index++;
         actualPointIT++;
     }
     
-    std::cout << points3D.size() << " - " << normalsVector.size() << std::endl;
+    optimize_pyramid_all(optimizationDataVector);
+    
+    for (std::size_t t = 0; t < tempNormalsVector.size(); t++)
+    {
+        normalsVector.push_back(*(tempNormalsVector[t]));
+    }
+    
+//     std::cout << "Punti: " << points3D.size() << " - Normali trovate: " << normalsVector.size() << std::endl;
+    
+    for (int i = 0; i < points3D.size(); i++)
+    {
+        delete(image1MatVector[i]);
+        delete(image1PixelVector[i]);
+        delete(tempNormalsVector[i]);
+    }
 }
 
-void NormalOptimizer::computeOptimizedNormalsAllInOne(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector, std::vector< cv::Scalar >& colors)
+void NormalOptimizer::optimize_pyramid_all(std::vector<lmminDataStruct> &optimizationDataStruct)
 {
-
+    float 
+        img_scale = float( pow(2.0,double(pyr_levels_)) );
+    
+    for( int i = pyr_levels_; i >= 0; i--)
+    {
+        actual_scale_ = 1.0/img_scale;
+        
+        std::cout << "Starting opt a pyr layer..." << std::endl;
+        optimize_all(i, optimizationDataStruct);
+        std::cout << "Ended the opt of the layer" << std::endl;
+        
+        img_scale /= 2.0f;
+    }
 }
 
+void NormalOptimizer::optimize_all(const int pyrLevel, std::vector<lmminDataStruct> &optimizationDataStruct)
+{
+    
+    std::vector<lmminDataStruct>::iterator 
+        dataIT = optimizationDataStruct.begin();
+    
+    int 
+        n_par = 2 * optimizationDataStruct.size();
+    
+    double 
+        par[n_par];
+        
+    m_dat_ = 0;
+        
+    int 
+        index = 0;
+    while (dataIT != optimizationDataStruct.end())
+    {
+        car2sph(*((*dataIT).normal), par[index], par[index + 1]);
+        
+//         std::cout << *((*dataIT).normal) << " - [" << par[index] << ", " << par[index + 1] << "]" << std::endl;
+        
+        dataIT->scale = actual_scale_;
+        
+        m_dat_ = m_dat_ + dataIT->m_dat;
+        
+        index = index + 2;
+        dataIT++;
+    }
+
+    sct_->setImages(pyr_img_1_[pyrLevel],pyr_img_2_[pyrLevel]);
+    
+    /* auxiliary parameters */
+    lm_status_struct 
+    status;
+    
+    lm_control_struct 
+        control = lm_control_double;
+    control.epsilon = epsilon_lmmin_;
+    control.patience = 20;
+    
+    lm_princon_struct 
+        princon = lm_princon_std;
+    princon.flags = 0;
+    
+    lmmin( n_par, par, m_dat_, &optimizationDataStruct, evaluateNormal,
+           lm_printout_std, &control, 0/*&princon*/, &status );
+    
+    dataIT = optimizationDataStruct.begin();
+    index = 0;
+    while (dataIT != optimizationDataStruct.end())
+    {
+        sph2car(par[index], par[index + 1], *((*dataIT).normal));
+        
+        index = index + 2;
+        dataIT++;
+    }
+}
 
 void NormalOptimizer::computeFeaturesFrames(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector, std::vector< cv::Matx44d >& featuresFrames)
 {

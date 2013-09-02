@@ -35,15 +35,42 @@
 
 #include <opencv2/opencv.hpp>
 #include <lmmin.h>
+#include <tr1/memory>
 
 #include "singlecameratriangulator.h"
 #include "../pclvisualizerthread.h"
 #include "../tools.h"
 
+
+
+typedef struct lmminDataStruct_{
+    
+    SingleCameraTriangulator
+        *sct;
+    cv::Vec3d
+        *point,
+        *normal;
+    int 
+        m_dat;
+    double 
+        scale;
+    std::vector<Pixel> 
+        *imagePoints1;
+    cv::Mat
+        *imagePoints1_MAT;
+    pclVisualizerThread
+        *pvt;
+    cv::Scalar
+        *color;
+    bool
+        isGood;
+    
+} lmminDataStruct;
+
 class NormalOptimizer
 {
 public:
-    NormalOptimizer(const cv::FileStorage settings, SingleCameraTriangulator* sct);
+    NormalOptimizer(const cv::FileStorage settings, SingleCameraTriangulator *sct);
 
     void setImages(const cv::Mat &img1, const cv::Mat &img2);
     
@@ -69,6 +96,10 @@ private:
     bool optimize(const int pyrLevel);
     
     bool optimize_pyramid();
+    
+    void optimize_all(const int pyrLevel, std::vector<lmminDataStruct> &optimizationDataStruct);
+    
+    void optimize_pyramid_all(std::vector<lmminDataStruct> &optimizationDataStruct);
     
 // private data
 private:
@@ -96,16 +127,6 @@ private:
     double
         actual_scale_;
         
-    cv::Ptr<cv::Vec3d>
-        actual_norm_,
-        actual_point_;
-        
-    std::vector<Pixel>
-        image_1_points_;
-        
-    cv::Mat
-        *image_1_points_MAT_;
-        
     double
         fixed_angle_; //for wall features
     /*LMMIN parameters*/
@@ -114,8 +135,6 @@ private:
         *workerThread_;
     pclVisualizerThread
         *visualizer_;
-    cv::Scalar
-        *color_;
 };
 
 #endif // NORMALOPTIMIZER_H

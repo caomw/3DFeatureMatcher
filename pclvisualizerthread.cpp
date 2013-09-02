@@ -1,7 +1,6 @@
 /**
  * \file <filename>
  * \Author: Michele Marostica
- * \brief: <brief>
  *  
  * Copyright (c) 2012, Michele Marostica (michelemaro@gmail.com)
  * All rights reserved.
@@ -140,6 +139,73 @@ void pclVisualizerThread::updateClouds(const std::vector< cv::Vec3d >& pointsVec
     
     updateLock.unlock();
 }
+
+void pclVisualizerThread::updateClouds(const std::vector< std::vector< cv::Vec3d > >& pointsGroupVector, const std::vector< cv::Vec3d >& normalVector, const std::vector< cv::Scalar >& colorVector)
+{
+    boost::mutex::scoped_lock updateLock(*(updateModelMutex_.get()));
+    (*update_) = true;
+    
+    if (pointsGroupVector.size() != normalVector.size() || normalVector.size() != colorVector.size())
+    {
+        std::cout << "Visualization error: sizes differ!" << std::endl;
+        exit(-100);
+    }
+    
+    cloud_->clear();
+    
+    /*Not visualize an empty pointcloud*/
+    pcl::PointXYZRGB noEmptyCloudVisualization;
+    noEmptyCloudVisualization.x = 0;
+    noEmptyCloudVisualization.y = 0;
+    noEmptyCloudVisualization.z = 0;
+    noEmptyCloudVisualization.r = 0;
+    noEmptyCloudVisualization.g = 0;
+    noEmptyCloudVisualization.b = 0;
+    cloud_->points.push_back(noEmptyCloudVisualization);
+    /*Not visualize an empty pointcloud*/
+    
+    //     normals_ = pcl::PointCloud<pcl::Normal>::Ptr(new pcl::PointCloud<pcl::Normal>());
+    normals_->clear();
+    
+    /*Not visualize an empty pointcloud*/
+    pcl::Normal noEmptyNormalVisualization;
+    noEmptyNormalVisualization.normal_x = 1;
+    noEmptyNormalVisualization.normal_y = 0;
+    noEmptyNormalVisualization.normal_z = 0;
+    normals_->points.push_back(noEmptyNormalVisualization);
+    /*Not visualize an empty pointcloud*/
+    
+    std::vector< std::vector<cv::Vec3d> >::const_iterator groupIT;
+    std::vector< cv::Vec3d >::const_iterator normalIT;
+    std::vector< cv::Scalar >::const_iterator colorIT;
+    for ( groupIT = pointsGroupVector.begin(), normalIT = normalVector.begin(), colorIT = colorVector.begin();
+          groupIT != pointsGroupVector.end(), normalIT != normalVector.end(), colorIT != colorVector.end();
+          groupIT++, normalIT++, colorIT++)
+    {
+        for (std::size_t t = 0; t < groupIT->size(); t++)
+        {
+            pcl::Normal
+                n((*normalIT)[0],(*normalIT)[1],(*normalIT)[2]);
+            
+            pcl::PointXYZRGB 
+                actual;
+            actual.x = groupIT->at(t)[0];
+            actual.y = groupIT->at(t)[1];
+            actual.z = groupIT->at(t)[2];
+            actual.r = (*colorIT)[0];
+            actual.g = (*colorIT)[1];
+            actual.b = (*colorIT)[2];
+            
+            normals_->points.push_back(n);
+            cloud_->points.push_back(actual);
+        }
+    }
+    cloud_->width = (int) cloud_->points.size ();
+    cloud_->height = 1;
+    
+    updateLock.unlock();
+}
+
 
 void pclVisualizerThread::keepLastCloud()
 {
