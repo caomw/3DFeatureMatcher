@@ -47,23 +47,27 @@ typedef struct lmminDataStruct_{
     
     SingleCameraTriangulator
         *sct;
-    cv::Vec3d
+    std::vector< cv::Vec3d >
         *point,
         *normal;
     int 
-        m_dat;
+        global_m_dat;
+    std::vector< int >
+        *m_dat;
     double 
         scale;
-    std::vector<Pixel> 
+    std::vector< std::vector<Pixel> > 
         *imagePoints1;
-    cv::Mat
+    std::vector< cv::Mat >
         *imagePoints1_MAT;
     pclVisualizerThread
         *pvt;
-    cv::Scalar
+    std::vector< cv::Scalar >
         *color;
-    bool
-        isGood;
+    std::vector< bool >
+        *isGood;
+        
+    int vectorSize;
     
 } lmminDataStruct;
 
@@ -97,9 +101,9 @@ private:
     
     bool optimize_pyramid();
     
-    void optimize_all(const int pyrLevel, std::vector<lmminDataStruct> &optimizationDataStruct);
+    void optimize_all(const int pyrLevel, lmminDataStruct &optimizationDataStruct);
     
-    void optimize_pyramid_all(std::vector<lmminDataStruct> &optimizationDataStruct);
+    void optimize_pyramid_all(lmminDataStruct &optimizationDataStruct);
     
 // private data
 private:

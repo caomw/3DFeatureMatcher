@@ -142,6 +142,18 @@ void SingleCameraTriangulator::setg12(const cv::Vec3d& T1, const cv::Vec3d& T2, 
     g12 = (*g_12_);
 }
 
+void SingleCameraTriangulator::setg12(const cv::Vec3d& T, const cv::Vec3d& rodrigues)
+{
+    cv::Matx33d R;
+    cv::Rodrigues(rodrigues, R);
+    composeTransformation(R, T, *g_12_);
+}
+
+void SingleCameraTriangulator::getg12Params(cv::Vec3d& T, cv::Vec3d& rodrigues)
+{
+    decomposeTransformation(*g_12_, rodrigues, T);
+}
+
 void SingleCameraTriangulator::setKeypoints(const std::vector< cv::KeyPoint >& kpts1, const std::vector< cv::KeyPoint >& kpts2, const std::vector< cv::DMatch >& matches)
 {
     N_ = matches.size();

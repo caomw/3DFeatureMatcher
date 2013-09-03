@@ -40,17 +40,17 @@
 #define ENABLE_VISUALIZER_
 #endif
 
-void manageBadData(int *fvecIndex, lmminDataStruct *data, double *fvec)
+void manageBadData(int *fvecIndex, int m_dat, double *fvec)
 {
     // compute residuals
     int 
         start = *fvecIndex, 
-        end = *fvecIndex + data->m_dat - 1;
+        end = *fvecIndex + m_dat - 1;
     for (std::size_t i = start; i < end; i++)
     {
         fvec[i] = 0; // max difference from black (0) and white (255)
     }
-    *fvecIndex = *fvecIndex + data->m_dat;
+    *fvecIndex = *fvecIndex + m_dat;
 }
 
 // Function that evaluate fvec of lmmin
@@ -58,44 +58,43 @@ void evaluateNormal( const double *par, int m_dat,
                      const void *data, double *fvec,
                      int *info )
 {
-    std::vector<lmminDataStruct> 
-        *dataVector = (std::vector<lmminDataStruct> *) data;
+    lmminDataStruct 
+        *dataStruct = (lmminDataStruct *) data;
         
-    std::vector<lmminDataStruct>::iterator 
-        dataIT;
     int 
         index,
+        gOffset = 6,
         fvecIndex = 0;
         
-#ifdef ENABLE_VISUALIZER_
     std::vector< std::vector<cv::Vec3d> > 
         pointGroupVector;
-    std::vector<cv::Vec3d> 
-        normalVector;
-    std::vector<cv::Scalar> 
-        colorVector;
-#endif
         
-    for (dataIT = dataVector->begin(), index = 0; dataIT != dataVector->end(); dataIT++, index += 2)
+    cv::Vec3d rodrigues, T;
+    
+    rodrigues[0] = par[0];
+    rodrigues[1] = par[1];
+    rodrigues[2] = par[2];
+    
+    T[0] = par[3];
+    T[1] = par[4];
+    T[2] = par[5];
+    
+    for (int i = 0, index = gOffset; i < dataStruct->vectorSize; i++, index += 3)
     {
-        if (!(dataIT->isGood))
+        if (!(dataStruct->isGood->at(i)))
         {
             // Put zero residuals
-            manageBadData(&fvecIndex, &*dataIT, fvec);
-            colorVector.push_back(cv::Scalar(0,0,0));
-            normalVector.push_back(cv::Vec3d(0,0,0));
+            manageBadData(&fvecIndex, dataStruct->m_dat->at(i), fvec);
             pointGroupVector.push_back(std::vector<cv::Vec3d>());
             continue;
         }
         
         double
-            phi = par[index],
-            theta = par[index + 1];
-            
-        cv::Vec3d
-            normal;
+            depth = par[index + 0],
+            phi = par[index + 1],
+            theta = par[index + 2];
         
-        sph2car(phi, theta, normal);
+        sph2car(phi, theta, dataStruct->normal->at(i));
         
         std::vector<cv::Vec3d>
             pointGroup;
@@ -104,56 +103,50 @@ void evaluateNormal( const double *par, int m_dat,
         int 
             goodNormal = 0;
         
+//         double w_depth = exp(cv::norm(dataStruct->point->at(i) - dataStruct->point->at(i) * exp(depth)) + 1);
+            
+        cv::Vec3d optimizedPoint = dataStruct->point->at(i) * exp(depth);
+            
         // obtain 3D points
-        goodNormal += dataIT->sct->get3dPointsFromImage1Pixels(*(dataIT->point), normal, *(dataIT->imagePoints1_MAT), pointGroup);
-        
-//         #ifdef ENABLE_VISUALIZER_
-//         dataIT->pvt->updateClouds(pointGroup, normal, *(dataIT->color));
-//         #endif
+        dataStruct->sct->setg12(T, rodrigues);
+        goodNormal += dataStruct->sct->get3dPointsFromImage1Pixels(optimizedPoint, dataStruct->normal->at(i),
+                                                                   dataStruct->imagePoints1_MAT->at(i), pointGroup);
         
         if (0 != goodNormal)
         {
-            dataIT->isGood = false;
+            dataStruct->isGood->at(i) = false;
             // Put zero residuals
-            manageBadData(&fvecIndex, &*dataIT, fvec);
-            colorVector.push_back(cv::Scalar(0,0,0));
-            normalVector.push_back(cv::Vec3d(0,0,0));
+            manageBadData(&fvecIndex, dataStruct->m_dat->at(i), fvec);
             pointGroupVector.push_back(std::vector<cv::Vec3d>());
             continue;
         }
         
         // update imagePoints1 to actual scale pixels intensity
-        goodNormal += dataIT->sct->updateImage1PixelsIntensity(dataIT->scale, *(dataIT->imagePoints1));
+        goodNormal += dataStruct->sct->updateImage1PixelsIntensity(dataStruct->scale, dataStruct->imagePoints1->at(i));
         
         if (0 != goodNormal)
         {
-            dataIT->isGood = false;
+            dataStruct->isGood->at(i) = false;
             // Put zero residuals
-            manageBadData(&fvecIndex, &*dataIT, fvec);
-            colorVector.push_back(cv::Scalar(0,0,0));
-            normalVector.push_back(cv::Vec3d(0,0,0));
+            manageBadData(&fvecIndex, dataStruct->m_dat->at(i), fvec);
             pointGroupVector.push_back(std::vector<cv::Vec3d>());
             continue;
         }
         
         // get imagePoints2 at actual scale
-        goodNormal += dataIT->sct->projectPointsToImage2(pointGroup, dataIT->scale, imagePoints2);
+        goodNormal += dataStruct->sct->projectPointsToImage2(pointGroup, dataStruct->scale, imagePoints2);
         
         if (0 != goodNormal)
         {
-            dataIT->isGood = false;
+            dataStruct->isGood->at(i) = false;
             // Put zero residuals
-            manageBadData(&fvecIndex, &*dataIT, fvec);
-            colorVector.push_back(cv::Scalar(0,0,0));
-            normalVector.push_back(cv::Vec3d(0,0,0));
+            manageBadData(&fvecIndex, dataStruct->m_dat->at(i), fvec);
             pointGroupVector.push_back(std::vector<cv::Vec3d>());
             continue;
         }
         
 #ifdef ENABLE_VISUALIZER_
         // For viz
-        colorVector.push_back(*(dataIT->color));
-        normalVector.push_back(normal);
         pointGroupVector.push_back(pointGroup);
 #endif
 
@@ -177,15 +170,14 @@ void evaluateNormal( const double *par, int m_dat,
         w = w_phi * w_theta;
         
         // compute residuals
-        for (std::size_t i = 0; i < dataIT->m_dat; i++)
+        for (std::size_t h = 0; h < dataStruct->m_dat->at(i); h++)
         {
-            fvec[fvecIndex++] = w * (dataIT->imagePoints1->at(i).i_ - imagePoints2.at(i).i_);
+            fvec[fvecIndex++] = w * (dataStruct->imagePoints1->at(i).at(h).i_ - imagePoints2.at(h).i_);
         }
     }
     
 #ifdef ENABLE_VISUALIZER_
-    dataIT = dataVector->begin();
-    dataIT->pvt->updateClouds(pointGroupVector, normalVector, colorVector);
+    dataStruct->pvt->updateClouds(pointGroupVector, *(dataStruct->normal), *(dataStruct->color));
 #endif
 }
 
@@ -286,30 +278,33 @@ void NormalOptimizer::stopVisualizerThread()
 void NormalOptimizer::computeOptimizedNormalsAllInOne(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector, std::vector< cv::Scalar >& colors)
 {
     // Prepare data for computation
-    std::vector<lmminDataStruct>
-        optimizationDataVector;
         
-    std::vector< cv::Mat * >
+    std::vector< cv::Mat >
         image1MatVector;
         
-    std::vector< std::vector<Pixel> * >
+    std::vector< std::vector<Pixel> >
         image1PixelVector;
         
-    std::vector< cv::Vec3d * >
+    std::vector< cv::Vec3d >
         tempNormalsVector;
         
+    std::vector< bool >
+        goodVector;
+        
+    std::vector< int >
+        m_datVector;
+    int global_m_dat = 0;
+        
     int index = 0;
-    for (std::vector<cv::Vec3d>::iterator actualPointIT = points3D.begin(); actualPointIT != points3D.end();/* actualPointIT++*/)
+    for (std::vector<cv::Vec3d>::iterator actualPointIT = points3D.begin(); actualPointIT != points3D.end();)
     {
         cv::Vec3d  
             normal((*actualPointIT) / cv::norm(*actualPointIT));
-        tempNormalsVector.push_back(new cv::Vec3d(normal));
         
         // Get the neighborhood of the feature point pixel
         std::vector<Pixel>
             image1Pixels;
         sct_->extractPixelsContour((*actualPointIT), image1Pixels);
-        image1PixelVector.push_back( new std::vector<Pixel>(image1Pixels) );
         
         cv::Mat
             image1PointsMAT(cv::Size(1, image1Pixels.size()), CV_64FC2, cv::Scalar(0));
@@ -317,7 +312,6 @@ void NormalOptimizer::computeOptimizedNormalsAllInOne(std::vector< cv::Vec3d >& 
         {
             image1PointsMAT.at<cv::Vec2d>(i) = cv::Vec2d(image1Pixels.at(i).x_, image1Pixels.at(i).y_);
         }
-        image1MatVector.push_back(new cv::Mat(image1PointsMAT));
         
         // Set mdat for actual point
         int m_dat = image1Pixels.size();
@@ -329,38 +323,47 @@ void NormalOptimizer::computeOptimizedNormalsAllInOne(std::vector< cv::Vec3d >& 
             continue;
         }
         
-        lmminDataStruct 
-            actualPointData = { sct_, &*actualPointIT, tempNormalsVector[index], 
-                                m_dat, 0.0, image1PixelVector[index], 
-                                image1MatVector[index], visualizer_, &(colors[index]), true };
-        
-                                
-        std::cout << *(tempNormalsVector[index]) << std::endl;
-                                
-        optimizationDataVector.push_back(actualPointData);
+        tempNormalsVector.push_back(normal);
+        image1PixelVector.push_back(image1Pixels);
+        image1MatVector.push_back(image1PointsMAT.clone());
+        m_datVector.push_back(m_dat);
+        goodVector.push_back(true);
     
         index++;
         actualPointIT++;
     }
     
+    lmminDataStruct
+        optimizationDataVector = { sct_, &points3D, &tempNormalsVector, 
+        global_m_dat, &m_datVector, 0.0, &image1PixelVector, 
+        &image1MatVector, visualizer_, &colors, &goodVector, points3D.size() };
+        
     optimize_pyramid_all(optimizationDataVector);
     
-    for (std::size_t t = 0; t < tempNormalsVector.size(); t++)
+    std::vector< cv::Vec3d >::iterator normalIT = tempNormalsVector.begin();
+    std::vector< cv::Vec3d >::iterator pointIT = points3D.begin();
+    
+    int i = 0;
+    while ( normalIT != tempNormalsVector.end(), pointIT != points3D.end() )
     {
-        normalsVector.push_back(*(tempNormalsVector[t]));
+        if (!(optimizationDataVector.isGood->at(i++)))
+        {
+            points3D.erase(pointIT);
+            tempNormalsVector.erase(normalIT);
+        }
+        else
+        {
+            normalsVector.push_back(*normalIT);
+            
+            normalIT++;
+            pointIT++;
+        }
     }
     
 //     std::cout << "Punti: " << points3D.size() << " - Normali trovate: " << normalsVector.size() << std::endl;
-    
-    for (int i = 0; i < points3D.size(); i++)
-    {
-        delete(image1MatVector[i]);
-        delete(image1PixelVector[i]);
-        delete(tempNormalsVector[i]);
-    }
 }
 
-void NormalOptimizer::optimize_pyramid_all(std::vector<lmminDataStruct> &optimizationDataStruct)
+void NormalOptimizer::optimize_pyramid_all(lmminDataStruct &optimizationDataStruct)
 {
     float 
         img_scale = float( pow(2.0,double(pyr_levels_)) );
@@ -369,42 +372,54 @@ void NormalOptimizer::optimize_pyramid_all(std::vector<lmminDataStruct> &optimiz
     {
         actual_scale_ = 1.0/img_scale;
         
-        std::cout << "Starting opt a pyr layer..." << std::endl;
+        std::cout << "Started the opt of a pyr layer, scale: " << actual_scale_ << std::endl;
         optimize_all(i, optimizationDataStruct);
-        std::cout << "Ended the opt of the layer" << std::endl;
+        std::cout << std::endl << "End of the opt of the layer" << std::endl;
         
         img_scale /= 2.0f;
     }
 }
 
-void NormalOptimizer::optimize_all(const int pyrLevel, std::vector<lmminDataStruct> &optimizationDataStruct)
+void NormalOptimizer::optimize_all(const int pyrLevel, lmminDataStruct &optimizationDataStruct)
 {
-    
-    std::vector<lmminDataStruct>::iterator 
-        dataIT = optimizationDataStruct.begin();
-    
-    int 
-        n_par = 2 * optimizationDataStruct.size();
+    int
+        parPerPoint = 3,
+        gOffset = 6;
+    int
+        n_par = gOffset + parPerPoint * optimizationDataStruct.point->size();
     
     double 
         par[n_par];
         
+    cv::Vec3d rodrigues, T;
+    
+    sct_->getg12Params(T, rodrigues);
+    
+    par[0] = rodrigues[0];
+    par[1] = rodrigues[1];
+    par[2] = rodrigues[2];
+    
+    par[3] = T[0];
+    par[4] = T[1];
+    par[5] = T[2];    
+    
     m_dat_ = 0;
         
     int 
-        index = 0;
-    while (dataIT != optimizationDataStruct.end())
+        index = gOffset;
+    
+    for (int i = 0; i < optimizationDataStruct.vectorSize; i++)
     {
-        car2sph(*((*dataIT).normal), par[index], par[index + 1]);
+        par[index + 0] = 0.0;
+        car2sph(optimizationDataStruct.normal->at(i), par[index + 1], par[index + 2]);
         
-//         std::cout << *((*dataIT).normal) << " - [" << par[index] << ", " << par[index + 1] << "]" << std::endl;
+        //         std::cout << *((*dataIT).normal) << " - [" << par[index] << ", " << par[index + 1] << "]" << std::endl;
         
-        dataIT->scale = actual_scale_;
+        optimizationDataStruct.scale = actual_scale_;
         
-        m_dat_ = m_dat_ + dataIT->m_dat;
+        m_dat_ = m_dat_ + optimizationDataStruct.m_dat->at(i);
         
-        index = index + 2;
-        dataIT++;
+        index = index + parPerPoint;
     }
 
     sct_->setImages(pyr_img_1_[pyrLevel],pyr_img_2_[pyrLevel]);
@@ -416,7 +431,7 @@ void NormalOptimizer::optimize_all(const int pyrLevel, std::vector<lmminDataStru
     lm_control_struct 
         control = lm_control_double;
     control.epsilon = epsilon_lmmin_;
-    control.patience = 20;
+//     control.patience = 20;
     
     lm_princon_struct 
         princon = lm_princon_std;
@@ -425,14 +440,18 @@ void NormalOptimizer::optimize_all(const int pyrLevel, std::vector<lmminDataStru
     lmmin( n_par, par, m_dat_, &optimizationDataStruct, evaluateNormal,
            lm_printout_std, &control, 0/*&princon*/, &status );
     
-    dataIT = optimizationDataStruct.begin();
-    index = 0;
-    while (dataIT != optimizationDataStruct.end())
+    index = gOffset;
+    
+    for (int i = 0; i < optimizationDataStruct.vectorSize; i++)
     {
-        sph2car(par[index], par[index + 1], *((*dataIT).normal));
+        double 
+            depth = par[index + 0];
         
-        index = index + 2;
-        dataIT++;
+        optimizationDataStruct.point->at(i) = optimizationDataStruct.point->at(i) * exp(depth);
+            
+        sph2car(par[index + 1], par[index + 2], optimizationDataStruct.normal->at(i));
+        
+        index = index + parPerPoint;
     }
 }
 

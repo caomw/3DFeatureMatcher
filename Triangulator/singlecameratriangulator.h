@@ -59,6 +59,10 @@ public:
     
     void setg12(const cv::Vec3d& T1, const cv::Vec3d& T2, const cv::Vec3d& rodrigues1, const cv::Vec3d& rodrigues2, cv::Matx44d &g12);
     
+    void setg12(const cv::Vec3d& T, const cv::Vec3d& rodrigues);
+    
+    void getg12Params(cv::Vec3d& T, cv::Vec3d& rodrigues);
+    
     void setKeypoints( const std::vector<cv::KeyPoint> &kpts1, const std::vector<cv::KeyPoint> &kpts2, const std::vector<cv::DMatch> &matches);
     
     void triangulate( std::vector< cv::Vec3d >& triangulatedPoints, std::vector< bool >& outliersMask );
