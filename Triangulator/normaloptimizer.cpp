@@ -342,9 +342,9 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
         actual_point_ = new cv::Vec3d((*actualPointIT));
         actual_norm_ = new cv::Vec3d((*actual_point_) / cv::norm(*actual_point_));
         
-        double theta, phi, angle;
-        angle = atan2((*actual_norm_)[2], (*actual_norm_)[1]) * 180 / M_PI;
-        car2sph(*actual_norm_, phi, theta);
+//         double theta, phi, angle;
+//         angle = atan2((*actual_norm_)[2], (*actual_norm_)[1]) * 180 / M_PI;
+//         car2sph(*actual_norm_, phi, theta);
         
 //         std::cout << *actual_norm_ << " - [" << phi * 180 / M_PI << ", " << theta * 180 / M_PI << "] - (" << angle << ")" << std::endl;
 
@@ -371,8 +371,8 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
         // Set the color for the visualizer
         color_ = new cv::Scalar(colors[index++]);
         
-        if ( angle < 105 )
-        {
+//         if ( angle < 105 )
+//         {
             if (!optimize_pyramid())
             {
                 points3D.erase(actualPointIT);
@@ -383,21 +383,21 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
 #ifdef ENABLE_VISUALIZER_
             visualizer_->keepLastCloud();
 #endif
-        }
-        else
-        {
-            (*actual_norm_)[0] = (*gravity_)[0];
-            (*actual_norm_)[1] = (*gravity_)[1];
-            (*actual_norm_)[2] = (*gravity_)[2];
-            
-            std::vector<cv::Vec3d>
-                pointGroup;
-            sct_->get3dPointsFromImage1Pixels(*actual_point_, *actual_norm_, *image_1_points_MAT_, pointGroup);
-#ifdef ENABLE_VISUALIZER_
-            visualizer_->updateClouds(pointGroup, *actual_norm_, *color_);
-            visualizer_->keepLastCloud();
-#endif
-        }
+//         }
+//         else
+//         {
+//             (*actual_norm_)[0] = (*gravity_)[0];
+//             (*actual_norm_)[1] = (*gravity_)[1];
+//             (*actual_norm_)[2] = (*gravity_)[2];
+//             
+//             std::vector<cv::Vec3d>
+//                 pointGroup;
+//             sct_->get3dPointsFromImage1Pixels(*actual_point_, *actual_norm_, *image_1_points_MAT_, pointGroup);
+// #ifdef ENABLE_VISUALIZER_
+//             visualizer_->updateClouds(pointGroup, *actual_norm_, *color_);
+//             visualizer_->keepLastCloud();
+// #endif
+//         }
         
         /// Here I can draw images
 

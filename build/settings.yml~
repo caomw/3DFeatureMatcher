@@ -1,12 +1,24 @@
 %YAML:1.0
+IMAGES:
+#TIME : 260316910 IMAGE : img_0000007809.pgm
+#TIME : 260316910 POS : 5.301099 8.031408 1.977258 0.153433 0.149941 -2.658648
+#TIME : 260850309 IMAGE : img_0000007825.pgm
+#TIME : 260850309 POS : 4.735536 7.691893 1.913166 0.252828 0.048977 -2.676886
+
+   img1: /home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000007809.pgm
+   img2: /home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000007825.pgm
+
+   pos1: [5.301099, 8.031408, 1.977258, 0.153433, 0.149941, -2.658648]
+   pos2: [4.735536, 7.691893, 1.913166, 0.252828, 0.048977, -2.676886]
+
 NNDR:
-   epsilon: 0.4
+   epsilon: 0.6
 
 Neighborhoods:
    #Part for normal optimization: take pixels in the image
    epsilonLMMIN: 1e-10
    pixelsRay: 64
-   pyramids: 4
+   pyramids: 3
 
    #Part for patch extraction: take points on the plane
    #square or circular
@@ -34,7 +46,7 @@ FeatureOptions:
    BriskDetector:
       Threshold: 25
       Octaves: 0
-   ExtractorType: BRISK
+   ExtractorType: SURF
 
 CameraSettings:
    #Camera-IMU Calibration Parameters

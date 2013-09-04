@@ -76,6 +76,8 @@ public:
                           std::vector<cv::KeyPoint> &kpts_a, std::vector<cv::KeyPoint> &kpts_b, 
                           cv::Mat &completeDescriptors_a, cv::Mat &completeDescriptors_b);
     
+    void extractDescriptorsFromPatches(const std::vector<cv::Mat> &patchesVector, cv::Mat &descriptors);
+    
 protected:
     /** Generates a feature detector based on options in the settings file
      * @param [in] fs the YAML file with the settings

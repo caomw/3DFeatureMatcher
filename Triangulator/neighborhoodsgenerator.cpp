@@ -131,6 +131,31 @@ void NeighborhoodsGenerator::computeSquareNeighborhoodByNormal(const cv::Matx44d
     }
 }
 
+void NeighborhoodsGenerator::getReferenceSquaredNeighborhood(std::vector< cv::Vec3d >& neighborhood)
+{
+    int
+        numberOfPointsPerEdge = 2 * ((int) floor(epsilon_ / (0.01 * cm_per_pixel_)));
+    
+    double
+        increment = cm_per_pixel_ * 0.01;
+    
+    neighborhood.clear();
+    
+    cv::Vec3d
+        point;
+    
+    for (int i = 0; i < numberOfPointsPerEdge; i++)
+    {
+        for (int j = 0; j < numberOfPointsPerEdge; j++)
+        {
+            point[0] = -epsilon_ + increment * i;
+            point[1] = -epsilon_ + increment * j;
+            point[2] = 0;
+            
+            neighborhood.push_back(point);
+        }
+    }
+}
 
 void NeighborhoodsGenerator::computeCircularNeighborhoodsByNormals(const cv::Mat& points, cv::Mat& normals, 
                                                                    std::vector< cv::Mat >& neighborhoodsVector)

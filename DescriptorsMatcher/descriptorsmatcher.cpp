@@ -32,6 +32,7 @@
 #endif
 
 #include "descriptorsmatcher.h"
+#include <boost/concept_check.hpp>
 
 DescriptorsMatcher::DescriptorsMatcher(cv::FileStorage &fs, cv::Mat &frame_a, cv::Mat &frame_b)
 {
@@ -129,8 +130,48 @@ void DescriptorsMatcher::compareWithNNDR(double epsilon, std::vector< cv::DMatch
     
 }
 
-
-
+void DescriptorsMatcher::extractDescriptorsFromPatches(const std::vector< cv::Mat >& patchesVector, cv::Mat& descriptors)
+{
+    std::vector<cv::Mat>::const_iterator patchIT = patchesVector.begin();
+    
+    std::vector<cv::Mat> descriptorsVector;
+    
+    std::vector< std::vector<cv::KeyPoint> > kpVector;
+    
+    while (patchIT != patchesVector.end())
+    {
+        int patchSize = patchIT->rows;
+        int center = (int) floor(patchSize / 2);
+        
+        std::vector<cv::KeyPoint> kpts;
+        
+        // Setup the KeyPoint
+        cv::KeyPoint kp;
+        kp.pt = cv::Point2f(center, center);
+        kp.size = patchSize;
+        kp.angle = -1;
+        kp.response = 1;
+        kp.octave = 0;
+        kp.class_id = 0;
+        
+        kpts.push_back(kp);
+        kpVector.push_back(kpts);
+        
+        patchIT++;
+    }
+    
+    // Compute the descriptor
+    descriptor_extractor_->compute(patchesVector, kpVector, descriptorsVector);
+    
+    descriptors = cv::Mat::zeros(cv::Size(descriptorsVector[0].cols, patchesVector.size()), descriptorsVector[0].type());
+    
+    for (std::size_t r = 0; r < descriptors.rows; r++)
+    {
+        descriptorsVector[r].copyTo(descriptors.row(r));
+//         std::cout << descriptorsVector[r] << std::endl << descriptors.row(r) << std::endl << "----------------" << std::endl;
+    }
+    
+}
 
 void DescriptorsMatcher::generateDetector(cv::FileStorage &fs) 
 {   

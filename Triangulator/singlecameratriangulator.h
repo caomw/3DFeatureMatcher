@@ -86,6 +86,11 @@ public:
                               std::vector< cv::Mat >& patchesVector,
                               std::vector< cv::Mat >& imagePointsVector
                              );
+    
+    void projectReferencePointsToImageWithFrames(const std::vector< cv::Vec3d >& referenceNeighborhooh, 
+                                                 const std::vector< cv::Matx44d >& featureFrames, 
+                                                 std::vector< cv::Mat >& patchesVector, 
+                                                 std::vector< cv::Mat >& imagePointsVector );
 //     int getMdat();
 // Private methods
 private:
@@ -100,8 +105,12 @@ private:
     void projectPointsToImage(const IMAGE_ID id, 
                               const std::vector< cv::Vec3d >& pointsGroup, 
                               cv::Mat& patch, 
-                              cv::Mat& imagePoints
-                             );
+                              cv::Mat& imagePoints );
+    
+    void projectReferencePointsToImageWithFrame(const std::vector< cv::Vec3d >& referenceNeighborhooh, 
+                                                const cv::Matx44d& featureFrame, 
+                                                cv::Mat& patch, 
+                                                cv::Mat& imagePoints );
     
     void projectPointToPlane( const cv::Vec3d& newPoint, const cv::Vec3d& featurePoint, const cv::Vec3d& normal, cv::Vec3d& pointOnThePlane );
     

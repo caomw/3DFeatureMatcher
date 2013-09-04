@@ -94,7 +94,7 @@ public:
     
     void computeSquareNeighborhoodByNormal( const cv::Matx44d& featureFrame, std::vector< cv::Vec3d >& neighborhood );
     
-    
+    void getReferenceSquaredNeighborhood(std::vector<cv::Vec3d> &neighborhood);
     
 private:
     NeighborhoodsGenerator();       //> No default constructor

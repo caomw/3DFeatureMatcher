@@ -766,3 +766,84 @@ void SingleCameraTriangulator::projectPointsToImage(const IMAGE_ID id,
     }
 }
 
+void SingleCameraTriangulator::projectReferencePointsToImageWithFrames(const std::vector< cv::Vec3d >& referenceNeighborhooh, 
+                                                                       const std::vector< cv::Matx44d >& featureFrames,  
+                                                                       std::vector< cv::Mat >& patchesVector, 
+                                                                       std::vector< cv::Mat >& imagePointsVector)
+{
+    patchesVector.clear();
+    imagePointsVector.clear();
+    
+    std::vector< cv::Matx44d >::const_iterator 
+        ff_it = featureFrames.begin();
+    
+    int size = sqrt(referenceNeighborhooh.size());
+    
+    int count = 0;
+    while (ff_it != featureFrames.end())
+    {
+        cv::Mat
+            patch = cv::Mat(cv::Size(size, size), CV_8UC1, cv::Scalar(0)),
+            imagePoints;
+        
+        projectReferencePointsToImageWithFrame(referenceNeighborhooh, *ff_it, patch, imagePoints);
+        
+        patchesVector.push_back(patch.clone());
+        imagePointsVector.push_back(imagePoints.clone());
+        
+        patch.~Mat();
+        imagePoints.~Mat();
+        ff_it++; count++;
+    }
+    
+    for (int i = 0; i < patchesVector.size(); i++)
+    {
+        cv::imwrite("patch_" + NumberToString<int>(i) + ".pgm", patchesVector[i]);
+    }
+}
+
+void SingleCameraTriangulator::projectReferencePointsToImageWithFrame(const std::vector< cv::Vec3d >& referenceNeighborhooh, 
+                                                                      const cv::Matx44d& featureFrame, 
+                                                                      cv::Mat& patch, 
+                                                                      cv::Mat& imagePoints)
+{
+    int size = sqrt(referenceNeighborhooh.size());
+    
+    cv::Vec3d
+        t, r;
+    
+    decomposeTransformation(featureFrame, r, t);
+    
+    cv::projectPoints(referenceNeighborhooh, r, t, *camera_matrix_, *distortion_coefficients_, imagePoints);
+    
+    cv::Vec2d
+        pixelCoordinates;
+    
+    int row = -1, col = 0;
+    for (std::size_t i = 0; i < imagePoints.rows; i++)
+    {
+        col = i%size;
+        if (0 == col)
+        {
+            row++;
+        }
+        pixelCoordinates = imagePoints.at<cv::Vec2d>(i);
+        
+        Pixel p;
+        
+        p.x_ = pixelCoordinates[0];
+        p.y_ = pixelCoordinates[1];
+        
+        // Check for bad points
+        if (!isPixelGood(p, 1.0))
+        {
+            //             std::cout << "bad point:" << pixelCoordinates << std::endl;
+            // The point is outside the image, set it to 0
+            patch.at<uchar>(col, row) = 0;
+        }
+        else
+        {
+            patch.at<uchar>(col, row) = static_cast<uchar>(getBilinearInterpPix32f(*img_1_, pixelCoordinates[0], pixelCoordinates[1]));
+        }
+    }
+}

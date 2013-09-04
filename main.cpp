@@ -19,8 +19,8 @@
 #include "pclvisualizerthread.h"
 #include "tools.h"
 
-#define IMG_1 "/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000750.pgm"
-#define IMG_2 "/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000770.pgm"
+// #define IMG_1 "/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000750.pgm"
+// #define IMG_2 "/home/mpp/WorkspaceTesi/loop_dataset/Images/img_0000000770.pgm"
 
 // IMG_1 pose: TIME : 25027785 POS : 4.467813 3.420069 0.806258 0.074931 -0.160281 0.563678
 // IMG_2 pose: TIME : 25694439 POS : 5.034858 3.667427 0.833424 0.014587 -0.248119 0.523502
@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
         settFileName = argv[2];
     
     cv::FileStorage 
-    fs;
+        fs;
     
     fs.open(settFileName, cv::FileStorage::READ);
     
@@ -72,6 +72,10 @@ int main(int argc, char **argv) {
     
     /////////////////////////////    
     // Get images
+    std::string IMG_1, IMG_2;
+    fs["IMAGES"]["img1"] >> IMG_1;
+    fs["IMAGES"]["img2"] >> IMG_2;
+    std::cout << IMG_1 << std::endl << IMG_2 << std::endl;
     cv::Mat
         img1 = cv::imread(IMG_1, CV_LOAD_IMAGE_GRAYSCALE),
         img2 = cv::imread(IMG_2, CV_LOAD_IMAGE_GRAYSCALE);
@@ -89,21 +93,25 @@ int main(int argc, char **argv) {
     
     dm.compareWithNNDR(fs["NNDR"]["epsilon"], matches, kpts1, kpts2, desc1, desc2);
     
+    std::vector<double> pos1, pos2;
+    fs["IMAGES"]["pos1"] >> pos1;
+    fs["IMAGES"]["pos2"] >> pos2;
     ///////////////////////////// 
     // Ottengo i vettori di traslazione
     // IMG_1 pose: TIME : 25027785 POS : -->4.467813 3.420069 0.806258<-- 0.074931 -0.160281 0.563678
     // IMG_2 pose: TIME : 25694439 POS : -->5.034858 3.667427 0.833424<-- 0.014587 -0.248119 0.523502
     cv::Vec3d
-        translation1(4.467813, 3.420069, 0.806258),
-        translation2(5.034858, 3.667427, 0.833424);
+        translation1(pos1[0], pos1[1], pos1[2]),
+        translation2(pos2[0], pos2[1], pos2[2]);
+    std::cout << translation1 << std::endl << translation2 << std::endl;
         
     ///////////////////////////// 
     // Ottengo i vettori di rotazione (rodrigues)
     // IMG_1 pose: TIME : 25027785 POS : 4.467813 3.420069 0.806258 -->0.074931 -0.160281 0.563678<--
     // IMG_2 pose: TIME : 25694439 POS : 5.034858 3.667427 0.833424 -->0.014587 -0.248119 0.523502<--
     cv::Vec3d
-        rodrigues1(0.074931, -0.160281, 0.563678),
-        rodrigues2(0.014587, -0.248119, 0.523502);
+        rodrigues1(pos1[3], pos1[4], pos1[5]),
+        rodrigues2(pos2[3], pos2[4], pos2[5]);
     
     cv::Matx44d
         g12;
@@ -154,19 +162,29 @@ int main(int argc, char **argv) {
     ////////////////////////////
     // Compute neighborhoods
     NeighborhoodsGenerator
-    ng(fs);
+        ng(fs);
     
     std::vector< std::vector<cv::Vec3d> >
         neighborhoodsVector;
-    
-    ng.computeSquareNeighborhoodsByNormals(featuresFrames, neighborhoodsVector);
-    
+//     ng.computeSquareNeighborhoodsByNormals(featuresFrames, neighborhoodsVector);
+    std::vector<cv::Vec3d>
+        referenceNeighborhood;
+    ng.getReferenceSquaredNeighborhood(referenceNeighborhood);
+        
     std::vector< cv::Mat >
         patchesVector,
         imagePointsVector;
         
     sct.setImages(img1,img2);
-    sct.projectPointsToImage(image1, neighborhoodsVector, patchesVector, imagePointsVector);
+//     sct.projectPointsToImage(image1, neighborhoodsVector, patchesVector, imagePointsVector);
+    sct.projectReferencePointsToImageWithFrames(referenceNeighborhood, featuresFrames, patchesVector, imagePointsVector );
+    
+    cv::Mat descriptors;
+    dm.extractDescriptorsFromPatches(patchesVector, descriptors);
+    
+    
+    // Now I can move the points for visualization
+    ng.computeSquareNeighborhoodsByNormals(featuresFrames, neighborhoodsVector);
     
     // Draw the patches and save the image
     cv::Mat
