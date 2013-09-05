@@ -41,3 +41,6 @@ Number Of Jobs=4
 
 [Project]
 VersionControlSupport=kdevgit
+
+[SourceFileTemplates]
+LastUsedTemplate=/home/mpp/.kde/share/apps/kdevfiletemplates/template_descriptions/cpp_basic.desktop
